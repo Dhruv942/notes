@@ -4,7 +4,7 @@ const { PromptTemplate } = require('@langchain/core/prompts');
 const { StringOutputParser } = require('@langchain/core/output_parsers');
 
 // OpenAI API Key
-const openaiApiKey ='';
+const openaiApiKey =process.env.OPENAI_API_KEY;
 
 if (!openaiApiKey) {
   console.warn('⚠️  Missing OpenAI API key - AI features will be disabled');
