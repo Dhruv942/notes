@@ -181,7 +181,10 @@ Quiz Questions:`;
   }
 
   // Generate mind map
-   const prompt = `Create a mind map structure from the following content. Return it as a JSON object with "topic" and "subtopics" fields. Each subtopic must be an object with a "name" field and optional "children" array. Example structure:
+    async generateMindMap(content) {
+    console.log('🤖 Starting mind map generation for content length:', content?.length || 0);
+    
+    const prompt = `Create a mind map structure from the following content. Return it as a JSON object with "topic" and "subtopics" fields. Each subtopic must be an object with a "name" field and optional "children" array. Example structure:
 \\{
   "topic": "Main Topic",
   "subtopics": [
