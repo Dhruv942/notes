@@ -8,11 +8,15 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  Dimensions,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import Modal from 'react-native-modal';
 import { colors } from '../theme/colors';
+
+const { width } = Dimensions.get('window');
 
 export default function UploadBottomSheet({
   visible,
@@ -201,11 +205,15 @@ export default function UploadBottomSheet({
     <Modal
       isVisible={visible}
       onBackdropPress={onClose}
-      onSwipeComplete={onClose}
-      swipeDirection="down"
       style={styles.modal}
       animationIn="slideInUp"
       animationOut="slideOutDown"
+      animationInTiming={300}
+      animationOutTiming={300}
+      backdropTransitionInTiming={300}
+      backdropTransitionOutTiming={300}
+      useNativeDriver={true}
+      hideModalContentWhileAnimating={true}
     >
       <View style={styles.container}>
         <View style={styles.handle} />
@@ -273,15 +281,15 @@ export default function UploadBottomSheet({
 
 const styles = StyleSheet.create({
   modal: {
-    justifyContent: 'flex-end',
     margin: 0,
+    justifyContent: 'flex-end',
   },
   container: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    minHeight: 400,
-    maxHeight: '80%',
+    maxHeight: '90%',
+    minHeight: '60%',
   },
   handle: {
     width: 40,
@@ -300,19 +308,28 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    // Safe area for different devices
+    paddingTop: Platform.OS === 'ios' ? 16 : 16,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
     color: colors.textPrimary,
+    letterSpacing: -0.3,
   },
   closeButton: {
-    padding: 4,
+    padding: 8,
+    borderRadius: 8,
+    // Better touch target
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   tabs: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -321,101 +338,150 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderRadius: 12,
     marginHorizontal: 4,
+    // Better touch target
+    minHeight: 48,
+    // Smooth transitions
+    transform: [{ scale: 1 }],
   },
   activeTab: {
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: colors.primary + '15', // 15% opacity
+    transform: [{ scale: 1.02 }],
   },
   tabText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     color: colors.textSecondary,
     marginLeft: 6,
+    // Better text rendering
+    includeFontPadding: false,
   },
   activeTabText: {
     color: colors.primary,
+    fontWeight: '700',
   },
   content: {
     flex: 1,
   },
   tabContent: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
   },
   tabTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '700',
     color: colors.textPrimary,
     marginBottom: 8,
+    letterSpacing: -0.3,
   },
   tabSubtitle: {
-    fontSize: 14,
+    fontSize: 15,
     color: colors.textSecondary,
-    lineHeight: 20,
-    marginBottom: 24,
+    lineHeight: 22,
+    marginBottom: 28,
+    fontWeight: '400',
   },
   titleInput: {
     backgroundColor: colors.cardBackground,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     fontSize: 16,
     color: colors.textPrimary,
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: 16,
+    marginBottom: 20,
+    // Better touch target
+    minHeight: 56,
+    fontWeight: '500',
   },
   textInput: {
     backgroundColor: colors.cardBackground,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     fontSize: 16,
     color: colors.textPrimary,
     borderWidth: 1,
     borderColor: colors.border,
-    height: 120,
-    marginBottom: 24,
+    height: 140,
+    marginBottom: 28,
+    textAlignVertical: 'top',
+    fontWeight: '400',
   },
   urlInput: {
     backgroundColor: colors.cardBackground,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     fontSize: 16,
     color: colors.textPrimary,
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: 24,
+    marginBottom: 28,
+    // Better touch target
+    minHeight: 56,
+    fontWeight: '500',
   },
   fileTypesContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    marginBottom: 24,
+    marginBottom: 28,
+    paddingHorizontal: 20,
   },
   fileType: {
     alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: colors.surfaceSecondary,
+    minWidth: 80,
   },
   fileTypeText: {
     fontSize: 12,
     color: colors.textSecondary,
-    marginTop: 4,
+    marginTop: 6,
+    fontWeight: '500',
+    textAlign: 'center',
   },
   submitButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 28,
+    // Better touch target
+    minHeight: 56,
+    elevation: 4,
+    shadowColor: colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
   submitButtonDisabled: {
     opacity: 0.6,
+    backgroundColor: colors.surfaceSecondary,
   },
   submitButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.textPrimary,
     marginLeft: 8,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginTop: 16,
+    fontWeight: '500',
   },
 });
 

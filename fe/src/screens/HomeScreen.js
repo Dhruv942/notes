@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -98,7 +99,7 @@ export default function HomeScreen() {
   const handleUploadWebsite = async (url) => {
     try {
       setUploading(true);
-      const response = await apiService.summarizeWebsite(url, true, 'Website Summary');
+      const response = await apiService.processWebsiteUrl(url, 'Website Content');
       
       if (response && response.data) {
         Alert.alert('Success', 'Website processed successfully!');
@@ -107,7 +108,7 @@ export default function HomeScreen() {
       }
     } catch (error) {
       console.error('Error processing website:', error);
-      Alert.alert('Error', 'Failed to process website');
+      Alert.alert('Error', `Failed to process website: ${error.message}`);
     } finally {
       setUploading(false);
     }
@@ -138,23 +139,25 @@ export default function HomeScreen() {
   );
 
   const renderHeader = () => (
-          <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>AI Study Notes</Text>
-          <Text style={styles.headerSubtitle}>
-            {notes.length} {notes.length === 1 ? 'note' : 'notes'}
-          </Text>
+        <View style={styles.header}>
+          <View style={styles.headerContent}>
+            <Text style={styles.headerTitle}>Noto</Text>
+            <Text style={styles.headerSubtitle}>AI Study Notes</Text>
+          </View>
+          <TouchableOpacity style={styles.searchButton}>
+            <Ionicons name="search" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.searchButton}>
-          <Ionicons name="search" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
-      </View>
   );
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+        <StatusBar 
+          barStyle="light-content" 
+          backgroundColor={colors.background}
+          translucent={true}
+        />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading your notes...</Text>
@@ -165,7 +168,11 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+      <StatusBar 
+        barStyle="light-content" 
+        backgroundColor={colors.background}
+        translucent={true}
+      />
       
       {renderHeader()}
       
@@ -223,63 +230,91 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 16,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    // Safe area for different devices - increased padding even more
+    paddingTop: Platform.OS === 'ios' ? 80 : 32,
+    paddingBottom: 16,
+  },
+  headerContent: {
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 32,
+    fontWeight: '800',
     color: colors.textPrimary,
     marginBottom: 2,
+    letterSpacing: -0.8,
   },
   headerSubtitle: {
     fontSize: 14,
     color: colors.textSecondary,
+    fontWeight: '500',
+    letterSpacing: 0.5,
   },
-
   searchButton: {
-    padding: 8,
-    borderRadius: 8,
+    padding: 10,
+    borderRadius: 12,
     backgroundColor: colors.surfaceSecondary,
+    // Better touch target
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   listContainer: {
-    padding: 20,
-    paddingBottom: 100, // Space for FAB
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingBottom: 120, // More space for FAB
   },
   separator: {
-    height: 16,
+    height: 12,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
-    marginTop: 100,
+    paddingHorizontal: 32,
+    marginTop: 80,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '700',
     color: colors.textPrimary,
-    marginTop: 16,
-    marginBottom: 8,
+    marginTop: 20,
+    marginBottom: 12,
+    textAlign: 'center',
   },
   emptySubtitle: {
     fontSize: 16,
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
-    marginBottom: 32,
+    marginBottom: 40,
+    paddingHorizontal: 20,
   },
   emptyButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderRadius: 16,
+    // Better touch target
+    minHeight: 56,
+    elevation: 4,
+    shadowColor: colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
   emptyButtonText: {
     fontSize: 16,
@@ -289,31 +324,36 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: 30,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    bottom: 24,
+    right: 16,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 8,
+    elevation: 12,
     shadowColor: colors.shadow,
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 6,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    // Better touch target
+    minWidth: 60,
+    minHeight: 60,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 20,
   },
   loadingText: {
     fontSize: 16,
     color: colors.textSecondary,
     marginTop: 16,
+    fontWeight: '500',
   },
 });

@@ -1,25 +1,31 @@
 {
   "expo": {
-    "name": "AI Study Notes",
-    "slug": "ai-study-notes",
+    "name": "Noto",
+    "slug": "noto-ai-notes",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "icon": "./assets/logo.png",
     "splash": {
+      "image": "./assets/logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#1a1a1a"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.noto.aistudynotes"
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#1a1a1a"
       },
+      "package": "com.noto.aistudynotes",
       "edgeToEdgeEnabled": true
     },
     "web": {
+      "favicon": "./assets/logo.png"
     }
   }
 }

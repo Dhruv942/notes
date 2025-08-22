@@ -649,6 +649,12 @@ export default function NoteDetailModal({ visible, note, onClose, onRefresh }) {
       style={styles.modal}
       animationIn="slideInUp"
       animationOut="slideOutDown"
+      animationInTiming={300}
+      animationOutTiming={300}
+      backdropTransitionInTiming={300}
+      backdropTransitionOutTiming={300}
+      useNativeDriver={true}
+      hideModalContentWhileAnimating={true}
     >
       <View style={styles.container}>
         <View style={styles.header}>
@@ -662,58 +668,81 @@ export default function NoteDetailModal({ visible, note, onClose, onRefresh }) {
         </View>
 
                  <View style={styles.tabs}>
-           <TouchableOpacity
-             style={[styles.tab, activeTab === 'notes' && styles.activeTab]}
-             onPress={() => {
-               console.log(`📱 [TAB SWITCH] Switching to Notes tab for noteId: ${note?.id}`);
-               setActiveTab('notes');
-             }}
-           >
-             <Ionicons 
-               name="document-text" 
-               size={20} 
-               color={activeTab === 'notes' ? colors.primary : colors.textSecondary} 
-             />
-             <Text style={[styles.tabText, activeTab === 'notes' && styles.activeTabText]}>
-               Notes
-             </Text>
-           </TouchableOpacity>
-           
-           <TouchableOpacity
-             style={[styles.tab, activeTab === 'quiz' && styles.activeTab]}
-             onPress={() => {
-               console.log(`📱 [TAB SWITCH] Switching to Quiz tab for noteId: ${note?.id}`);
-               setActiveTab('quiz');
-             }}
-           >
-             <Ionicons 
-               name="help-circle" 
-               size={20} 
-               color={activeTab === 'quiz' ? colors.primary : colors.textSecondary} 
-             />
-             <Text style={[styles.tabText, activeTab === 'quiz' && styles.activeTabText]}>
-               Quiz
-             </Text>
-           </TouchableOpacity>
-           
-           <TouchableOpacity
-             style={[styles.tab, activeTab === 'flashcards' && styles.activeTab]}
-             onPress={() => {
-               console.log(`📱 [TAB SWITCH] Switching to Flashcards tab for noteId: ${note?.id}`);
-               setActiveTab('flashcards');
-             }}
-           >
-             <Ionicons 
-               name="card" 
-               size={20} 
-               color={activeTab === 'flashcards' ? colors.primary : colors.textSecondary} 
-             />
-             <Text style={[styles.tabText, activeTab === 'flashcards' && styles.activeTabText]}>
-               Cards
-             </Text>
-           </TouchableOpacity>
-           
-                       <TouchableOpacity
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabsScrollContainer}
+            style={styles.tabsScrollView}
+          >
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'notes' && styles.activeTab]}
+              onPress={() => {
+                console.log(`📱 [TAB SWITCH] Switching to Notes tab for noteId: ${note?.id}`);
+                setActiveTab('notes');
+              }}
+            >
+              <Ionicons 
+                name="document-text" 
+                size={20} 
+                color={activeTab === 'notes' ? colors.primary : colors.textSecondary} 
+              />
+              <Text style={[styles.tabText, activeTab === 'notes' && styles.activeTabText]}>
+                Notes
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'quiz' && styles.activeTab]}
+              onPress={() => {
+                console.log(`📱 [TAB SWITCH] Switching to Quiz tab for noteId: ${note?.id}`);
+                setActiveTab('quiz');
+              }}
+            >
+              <Ionicons 
+                name="help-circle" 
+                size={20} 
+                color={activeTab === 'quiz' ? colors.primary : colors.textSecondary} 
+              />
+              <Text style={[styles.tabText, activeTab === 'quiz' && styles.activeTabText]}>
+                Quiz
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'flashcards' && styles.activeTab]}
+              onPress={() => {
+                console.log(`📱 [TAB SWITCH] Switching to Flashcards tab for noteId: ${note?.id}`);
+                setActiveTab('flashcards');
+              }}
+            >
+              <Ionicons 
+                name="card" 
+                size={20} 
+                color={activeTab === 'flashcards' ? colors.primary : colors.textSecondary} 
+              />
+              <Text style={[styles.tabText, activeTab === 'flashcards' && styles.activeTabText]}>
+                Cards
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'compare' && styles.activeTab]}
+              onPress={() => {
+                console.log(`📱 [TAB SWITCH] Switching to Compare tab for noteId: ${note?.id}`);
+                setActiveTab('compare');
+              }}
+            >
+              <Ionicons 
+                name="git-compare" 
+                size={20} 
+                color={activeTab === 'compare' ? colors.primary : colors.textSecondary} 
+              />
+              <Text style={[styles.tabText, activeTab === 'compare' && styles.activeTabText]}>
+                Compare
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
               style={[styles.tab, activeTab === 'mindmap' && styles.activeTab]}
               onPress={() => {
                 console.log(`📱 [TAB SWITCH] Switching to Mind Map tab for noteId: ${note?.id}`);
@@ -729,24 +758,8 @@ export default function NoteDetailModal({ visible, note, onClose, onRefresh }) {
                 Mind Map
               </Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'highlights' && styles.activeTab]}
-              onPress={() => {
-                console.log(`📱 [TAB SWITCH] Switching to Highlights tab for noteId: ${note?.id}`);
-                setActiveTab('highlights');
-              }}
-            >
-              <Ionicons 
-                name="bookmark" 
-                size={20} 
-                color={activeTab === 'highlights' ? colors.primary : colors.textSecondary} 
-              />
-              <Text style={[styles.tabText, activeTab === 'highlights' && styles.activeTabText]}>
-                Highlights
-              </Text>
-            </TouchableOpacity>
-         </View>
+          </ScrollView>
+        </View>
 
                            <View style={styles.content}>
             {activeTab === 'notes' && renderNotesTab()}
@@ -853,31 +866,50 @@ const styles = StyleSheet.create({
     width: 32,
   },
   tabs: {
-    flexDirection: 'row',
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    paddingVertical: 4,
+  },
+  tabsScrollView: {
+    flexGrow: 0,
+  },
+  tabsScrollContainer: {
+    alignItems: 'center',
+    paddingHorizontal: 8,
   },
   tab: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 8,
+    paddingHorizontal: 16,
+    marginHorizontal: 4,
+    borderRadius: 8,
+    minWidth: 80,
+    // Better touch target
+    minHeight: 44,
+    // Smooth transitions
+    transform: [{ scale: 1 }],
   },
   activeTab: {
+    backgroundColor: colors.primary + '15', // 15% opacity
     borderBottomWidth: 2,
     borderBottomColor: colors.primary,
+    transform: [{ scale: 1.05 }],
   },
   tabText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     color: colors.textSecondary,
     marginLeft: 6,
+    // Better text rendering
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   activeTabText: {
     color: colors.primary,
+    fontWeight: '700',
   },
   content: {
     flex: 1,
@@ -1495,6 +1527,13 @@ const styles = StyleSheet.create({
      fontSize: 16,
      fontWeight: '600',
      color: colors.textPrimary,
+   },
+   // New Tab Styles
+   tabsScrollView: {
+     flexGrow: 0, // Prevent ScrollView from growing and taking up space
+   },
+   tabsScrollContainer: {
+     alignItems: 'center',
    },
  });
 

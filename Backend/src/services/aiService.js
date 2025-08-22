@@ -1,9 +1,11 @@
-const { aiClient, langChainClient, PromptTemplate, outputParser } = require('../config/aiClient');
+const { aiClient, langChainClient, geminiClient, PromptTemplate, outputParser } = require('../config/aiClient');
 
 class AIService {
   constructor() {
     this.useLangChain = process.env.USE_LANGCHAIN === 'true';
+    this.useGeminiBackup = true; // Always enable Gemini backup
     console.log(`🤖 AI Service initialized with ${this.useLangChain ? 'LangChain' : 'OpenAI'} mode`);
+    console.log('🤖 Gemini backup always enabled');
   }
 
   // Helper method to clean JSON response
@@ -15,12 +17,37 @@ class AIService {
     return cleaned;
   }
 
-  // Helper method to choose between OpenAI and LangChain
+  // Helper method to choose between AI providers with smart fallback
   async generateWithAI(prompt, options = {}) {
-    if (this.useLangChain) {
-      return this.generateWithLangChain(prompt, options);
-    } else {
-      return this.generateWithOpenAI(prompt, options);
+    let openaiError = null;
+    
+    // Try OpenAI first
+    if (aiClient || langChainClient) {
+      try {
+        if (this.useLangChain) {
+          return await this.generateWithLangChain(prompt, options);
+        } else {
+          return await this.generateWithOpenAI(prompt, options);
+        }
+      } catch (error) {
+        console.log('❌ OpenAI failed:', error.message);
+        openaiError = error;
+      }
+    }
+    
+    // Always try Gemini as backup - even if client is not configured, try to create it
+    console.log('🤖 Trying Gemini backup...');
+    try {
+      return await this.generateWithGemini(prompt, options);
+    } catch (geminiError) {
+      console.log('❌ Gemini failed:', geminiError.message);
+      
+      // If both failed, throw a comprehensive error
+      if (openaiError) {
+        throw new Error(`All AI providers failed. OpenAI: ${openaiError.message}, Gemini: ${geminiError.message}`);
+      } else {
+        throw new Error(`Gemini failed: ${geminiError.message}`);
+      }
     }
   }
 
@@ -69,6 +96,53 @@ class AIService {
     } catch (error) {
       console.error('❌ LangChain Error:', error);
       throw new Error(`LangChain Error: ${error.message}`);
+    }
+  }
+
+  // Gemini implementation (direct API - no LangChain)
+  async generateWithGemini(prompt, options = {}) {
+    try {
+      let client = geminiClient;
+      
+      // If geminiClient is not configured, try to create it
+      if (!client) {
+        console.log('🤖 Creating Gemini client dynamically...');
+        const { GoogleGenerativeAI } = require('@google/generative-ai');
+        
+        // Use environment variable
+        const geminiApiKey = process.env.GEMINI_API_KEY;
+        
+        if (!geminiApiKey) {
+          throw new Error('GEMINI_API_KEY environment variable not set');
+        }
+        
+        client = new GoogleGenerativeAI(geminiApiKey);
+      }
+      
+      console.log('🤖 Using Gemini 2.0 Flash for AI generation...');
+      
+      // Get the Gemini model
+      const model = client.getGenerativeModel({ 
+        model: 'gemini-2.0-flash',
+        generationConfig: {
+          temperature: options.temperature || 0.7,
+          maxOutputTokens: options.maxTokens || 2048,
+        }
+      });
+      
+      // Create the full prompt with system message
+      const fullPrompt = options.systemPrompt 
+        ? `${options.systemPrompt}\n\n${prompt}`
+        : prompt;
+      
+      // Generate content
+      const result = await model.generateContent(fullPrompt);
+      const response = await result.response;
+      
+      return response.text();
+    } catch (error) {
+      console.error('❌ Gemini Error:', error);
+      throw new Error(`Gemini Error: ${error.message}`);
     }
   }
 

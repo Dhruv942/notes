@@ -13,6 +13,8 @@ class ApiService {
   async request(endpoint, options = {}) {
     try {
       const url = `${this.baseURL}${endpoint}`;
+      console.log(`🌐 Making request to: ${url}`);
+      
       const response = await fetch(url, {
         headers: {
           'Content-Type': 'application/json',
@@ -21,10 +23,19 @@ class ApiService {
         ...options,
       });
 
-      const data = await response.json();
+      console.log(`🌐 Response status: ${response.status}`);
+      
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        console.error('❌ Error parsing JSON response:', jsonError);
+        throw new Error('Invalid response from server');
+      }
       
       if (!response.ok) {
-        throw new Error(data.message || 'API request failed');
+        console.error('❌ API Error Response:', data);
+        throw new Error(data.message || data.error || `HTTP ${response.status}: ${response.statusText}`);
       }
        
        // Add success property if not present (for backward compatibility)
@@ -36,6 +47,16 @@ class ApiService {
     } catch (error) {
       console.error('❌ API Error:', error);
       console.error('❌ API Error message:', error.message);
+      
+      // Provide more specific error messages
+      if (error.message.includes('Network request failed')) {
+        throw new Error('Network connection failed. Please check your internet connection and try again.');
+      } else if (error.message.includes('timeout')) {
+        throw new Error('Request timed out. Please try again.');
+      } else if (error.message.includes('fetch')) {
+        throw new Error('Unable to connect to server. Please check if the backend is running.');
+      }
+      
       throw error;
     }
   }
@@ -52,16 +73,39 @@ class ApiService {
       });
 
       console.log('📁 Upload response status:', response.status);
-      const data = await response.json();
+      
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        console.error('❌ Error parsing upload response:', jsonError);
+        throw new Error('Invalid response from server during upload');
+      }
+      
       console.log('📁 Upload response data:', data);
       
       if (!response.ok) {
-        throw new Error(data.message || 'Upload failed');
+        console.error('❌ Upload Error Response:', data);
+        throw new Error(data.message || data.error || `Upload failed: HTTP ${response.status}`);
       }
 
       return data;
     } catch (error) {
       console.error('❌ Upload Error:', error);
+      
+      // Provide more specific error messages for uploads
+      if (error.message.includes('Network request failed')) {
+        throw new Error('Network connection failed during upload. Please check your internet connection and try again.');
+      } else if (error.message.includes('timeout')) {
+        throw new Error('Upload timed out. Please try again with a smaller file or check your connection.');
+      } else if (error.message.includes('fetch')) {
+        throw new Error('Unable to connect to server during upload. Please check if the backend is running.');
+      } else if (error.message.includes('file size')) {
+        throw new Error('File is too large. Please try a smaller file (max 50MB).');
+      } else if (error.message.includes('file type')) {
+        throw new Error('Unsupported file type. Please try PDF, DOC, TXT, audio, or video files.');
+      }
+      
       throw error;
     }
   }
@@ -172,6 +216,13 @@ class ApiService {
   }
 
   // Website API
+  async processWebsiteUrl(url, title = '') {
+    return this.request('/website/process-url', {
+      method: 'POST',
+      body: JSON.stringify({ url, title }),
+    });
+  }
+
   async summarizeWebsite(url, saveAsNote = false, title = '') {
     return this.request('/website/summarize', {
       method: 'POST',
@@ -198,6 +249,28 @@ class ApiService {
     return this.request('/compare/concepts', {
       method: 'POST',
       body: JSON.stringify({ concept1, concept2 }),
+    });
+  }
+
+  async compareContentWithNote(noteId, content) {
+    return this.request(`/notes/${noteId}/compare-with-content`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+  }
+
+  async compareWithExistingNotes(content, limit = 5) {
+    return this.request('/notes/compare-with-existing', {
+      method: 'POST',
+      body: JSON.stringify({ content, limit }),
+    });
+  }
+
+  // Compare specific note with user content
+  async compareNoteWithContent(noteId, content) {
+    return this.request(`/notes/${noteId}/compare-with-content`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
     });
   }
 
