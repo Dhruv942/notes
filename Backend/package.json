@@ -12,7 +12,7 @@
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@google/generative-ai": "^0.24.1",
     "@langchain/community": "^0.0.20",
-    "@langchain/core": "^0.1.17",
+    "@langchain/core": "^0.3.72",
     "@langchain/google-genai": "^0.2.16",
     "@langchain/openai": "^0.0.14",
     "@supabase/supabase-js": "^2.38.4",
