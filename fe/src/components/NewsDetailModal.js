@@ -1,539 +1,1065 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  Modal,
   TouchableOpacity,
   ScrollView,
-  Dimensions,
-  Linking,
+  ActivityIndicator,
   Alert,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
+import Modal from 'react-native-modal';
 import { colors } from '../theme/colors';
+import apiService from '../services/api';
+import MindMapViewer from './MindMapViewer';
+import { useQuiz } from '../hooks/useQuiz';
+import { useFlashcards } from '../hooks/useFlashcards';
+import { useHighlights } from '../hooks/useHighlights';
 
-const { width, height } = Dimensions.get('window');
-
-const getCategoryColor = (category) => {
-  const categoryColors = {
-    'Polity & Governance': '#EF4444',
-    'Economy': '#10B981',
-    'Environment & Ecology': '#059669',
-    'Science & Technology': '#3B82F6',
-    'International Relations': '#8B5CF6',
-    'Current Affairs': '#F59E0B',
-  };
-  return categoryColors[category] || colors.primary;
-};
-
-export default function NewsDetailModal({ visible, news, onClose }) {
-  const [activeTab, setActiveTab] = useState('article'); // 'article', 'mcqs', 'flashcards', 'mindmap'
-  const [currentMCQIndex, setCurrentMCQIndex] = useState(0);
+export default function NoteDetailModal({ visible, note, onClose, onRefresh }) {
+  const [activeTab, setActiveTab] = useState('notes');
+  const [loading, setLoading] = useState(false);
+  const [localHighlights, setLocalHighlights] = useState([]);
+  const [showHighlightModal, setShowHighlightModal] = useState(false);
+  const [highlightText, setHighlightText] = useState('');
+  const [highlightNote, setHighlightNote] = useState('');
+  const [currentQuizIndex, setCurrentQuizIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
-  const [showMCQResult, setShowMCQResult] = useState(false);
+  const [showAnswer, setShowAnswer] = useState(false);
+  const [score, setScore] = useState(0);
+  const [answeredQuestions, setAnsweredQuestions] = useState(new Set());
   const [currentFlashcardIndex, setCurrentFlashcardIndex] = useState(0);
-  const [showFlashcardAnswer, setShowFlashcardAnswer] = useState(false);
+  const [flashcardFlipped, setFlashcardFlipped] = useState(false);
+  
+  // Compare tab state
+  const [compareContent, setCompareContent] = useState('');
+  const [compareResult, setCompareResult] = useState(null);
+  const [compareLoading, setCompareLoading] = useState(false);
 
-  if (!news) return null;
+  // React Query hooks
+  const { 
+    data: quizData, 
+    isLoading: quizLoading, 
+    error: quizError,
+    refetch: refetchQuiz 
+  } = useQuiz(note?.id, false);
+  
+  const { 
+    data: flashcardsData, 
+    isLoading: flashcardsLoading, 
+    error: flashcardsError,
+    refetch: refetchFlashcards 
+  } = useFlashcards(note?.id, false);
 
-  const categoryColor = getCategoryColor(news.category);
+  const {
+    data: highlights,
+    isLoading: highlightsLoading,
+    error: highlightsError,
+    refetch: refetchHighlights,
+    createHighlight
+  } = useHighlights(note?.id);
 
-  const handleOpenLink = async () => {
-    if (news.source_url) {
-      try {
-        await Linking.openURL(news.source_url);
-      } catch (error) {
-        Alert.alert('Error', 'Could not open the link');
-      }
+  useEffect(() => {
+    if (visible && note) {
+      loadNoteData();
+      // Reset compare state when modal opens
+      setCompareContent('');
+      setCompareResult(null);
+      setCompareLoading(false);
+    }
+  }, [visible, note]);
+
+  // Reset quiz state when quiz data changes
+  useEffect(() => {
+    if (quizData) {
+      setCurrentQuizIndex(0);
+      setSelectedAnswer(null);
+      setShowAnswer(false);
+      setScore(0);
+      setAnsweredQuestions(new Set());
+    }
+  }, [quizData]);
+
+  // Reset flashcards state when flashcards data changes
+  useEffect(() => {
+    if (flashcardsData) {
+      setCurrentFlashcardIndex(0);
+      setFlashcardFlipped(false);
+    }
+  }, [flashcardsData]);
+
+  const loadNoteData = async () => {
+    if (!note) return;
+    
+    setLoading(true);
+    try {
+      // Highlights are now loaded by the hook
+      console.log('Note data loaded');
+    } catch (error) {
+      console.error('Error loading note data:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric',
-      month: 'long', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const handleSaveSelectedText = async (selectedText) => {
+    if (!selectedText || !selectedText.trim()) return;
+
+    try {
+      console.log('Saving highlight:', selectedText.trim());
+      
+      // Use the hook's createHighlight function
+      const result = await createHighlight({
+        content: selectedText.trim(),
+        note: '',
+        source: 'selection',
+        note_id: note.id,
+      });
+      
+      if (result) {
+        Alert.alert('Success', 'Text highlighted successfully!');
+      } else {
+        Alert.alert('Error', 'Failed to save highlight');
+      }
+    } catch (error) {
+      console.error('Error saving highlight:', error);
+      Alert.alert('Error', 'Failed to save highlight: ' + error.message);
+    }
   };
 
-  const renderArticleTab = () => (
-    <View style={styles.tabContent}>
-      <View style={styles.articleHeader}>
-        <View style={[styles.categoryBadge, { backgroundColor: categoryColor }]}>
-          <Text style={styles.categoryText}>{news.category}</Text>
-        </View>
-        <Text style={styles.date}>{formatDate(news.created_at)}</Text>
-      </View>
-      
-      <Text style={styles.articleTitle}>{news.title}</Text>
-      
-      <View style={styles.sourceContainer}>
-        <Text style={styles.sourceLabel}>Source:</Text>
-        <TouchableOpacity onPress={handleOpenLink}>
-          <Text style={styles.sourceLink}>{news.source}</Text>
-        </TouchableOpacity>
-      </View>
-      
-      {news.summary && (
-        <View style={styles.summarySection}>
-          <Text style={styles.sectionTitle}>Summary</Text>
-          <Text style={styles.summaryText}>{news.summary}</Text>
-        </View>
-      )}
-      
-      {news.content && (
-        <View style={styles.contentSection}>
-          <Text style={styles.sectionTitle}>Full Article</Text>
-          <Text style={styles.contentText}>{news.content}</Text>
-        </View>
-      )}
-    </View>
-  );
+  const openHighlightModal = () => {
+    Alert.prompt(
+      'Create Highlight',
+      'Enter the text you want to highlight:',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'OK', 
+          onPress: (text) => {
+            if (text && text.trim()) {
+              setHighlightText(text.trim());
+              setShowHighlightModal(true);
+            }
+          }
+        }
+      ],
+      'plain-text'
+    );
+  };
 
-  const renderMCQsTab = () => (
-    <View style={styles.tabContent}>
-      <Text style={styles.sectionTitle}>Practice MCQs</Text>
-      {news.mcqs && news.mcqs.length > 0 ? (
-        <View style={styles.mcqContainer}>
-          <View style={styles.mcqHeader}>
-            <Text style={styles.mcqCounter}>
-              Question {currentMCQIndex + 1} of {news.mcqs.length}
-            </Text>
-            <Text style={styles.mcqScore}>
-              Score: {news.mcqs.filter((_, index) => index < currentMCQIndex && showMCQResult).length}/{currentMCQIndex}
-            </Text>
-          </View>
+  const saveHighlight = async () => {
+    if (!highlightText.trim()) {
+      Alert.alert('Error', 'Please select text to highlight');
+      return;
+    }
 
-          <Text style={styles.mcqQuestion}>
-            {news.mcqs[currentMCQIndex].question}
+    try {
+      const result = await createHighlight({
+        content: highlightText.trim(),
+        note: highlightNote.trim(),
+        source: 'manual',
+        note_id: note.id,
+      });
+      
+      if (result) {
+        setShowHighlightModal(false);
+        setHighlightText('');
+        setHighlightNote('');
+        Alert.alert('Success', 'Highlight saved successfully!');
+      } else {
+        Alert.alert('Error', 'Failed to save highlight');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to save highlight');
+      console.error('Error saving highlight:', error);
+    }
+  };
+
+  const cancelHighlightModal = () => {
+    setShowHighlightModal(false);
+    setHighlightText('');
+    setHighlightNote('');
+  };
+
+
+
+  const handleAnswerSelect = (index) => {
+    if (answeredQuestions.has(currentQuizIndex)) return; // Prevent multiple answers
+    
+    setSelectedAnswer(index);
+    setShowAnswer(true);
+    
+    // Check if answer is correct
+    const currentQuestion = quizData[currentQuizIndex];
+    if (currentQuestion && currentQuestion.correct_answer !== undefined) {
+      const isCorrect = index === currentQuestion.correct_answer;
+      if (isCorrect) {
+        setScore(score + 1);
+      }
+    }
+    
+    // Mark question as answered
+    setAnsweredQuestions(prev => new Set([...prev, currentQuizIndex]));
+  };
+
+  const handleNextQuestion = () => {
+    if (quizData && currentQuizIndex < quizData.length - 1) {
+      setCurrentQuizIndex(currentQuizIndex + 1);
+      setSelectedAnswer(null);
+      setShowAnswer(false);
+    }
+  };
+
+  const handlePreviousQuestion = () => {
+    if (currentQuizIndex > 0) {
+      setCurrentQuizIndex(currentQuizIndex - 1);
+      setSelectedAnswer(null);
+      setShowAnswer(false);
+    }
+  };
+
+  const handleCompare = async () => {
+    if (!compareContent.trim() || !note?.id) return;
+    
+    setCompareLoading(true);
+    try {
+      console.log(`🔄 [COMPARE] Comparing content with noteId: ${note.id}`);
+      const result = await apiService.compareNoteWithContent(note.id, compareContent);
+      
+      if (result.success) {
+        setCompareResult(result);
+        console.log('✅ [COMPARE] Comparison completed successfully');
+      } else {
+        Alert.alert('Error', 'Failed to compare content. Please try again.');
+      }
+    } catch (error) {
+      console.error('❌ [COMPARE] Error comparing content:', error);
+      Alert.alert('Error', error.message || 'Failed to compare content. Please try again.');
+    } finally {
+      setCompareLoading(false);
+    }
+  };
+
+
+
+  const renderHighlightedContent = () => {
+    if (!highlights || highlights.length === 0) {
+      return note.content;
+    }
+
+    let content = note.content;
+    let result = [];
+
+    // Sort highlights by position in text
+    const sortedHighlights = [...highlights].sort((a, b) => {
+      const aIndex = content.indexOf(a.content);
+      const bIndex = content.indexOf(b.content);
+      return aIndex - bIndex;
+    });
+
+    let lastIndex = 0;
+
+    sortedHighlights.forEach((highlight, index) => {
+      const highlightIndex = content.indexOf(highlight.content, lastIndex);
+      
+      if (highlightIndex !== -1) {
+        // Add text before highlight
+        if (highlightIndex > lastIndex) {
+          result.push(
+            <Text key={`text-${index}`} style={styles.contentText}>
+              {content.substring(lastIndex, highlightIndex)}
+            </Text>
+          );
+        }
+
+        // Add highlighted text
+        result.push(
+          <Text key={`highlight-${highlight.id}`} style={[styles.contentText, styles.highlightedText]}>
+            {highlight.content}
           </Text>
+        );
 
-          <View style={styles.mcqOptions}>
-            {news.mcqs[currentMCQIndex].options.map((option, optionIndex) => (
-              <TouchableOpacity
-                key={optionIndex}
-                style={[
-                  styles.mcqOption,
-                  selectedAnswer === optionIndex && styles.mcqOptionSelected,
-                  showMCQResult && optionIndex === news.mcqs[currentMCQIndex].correct_answer && styles.mcqOptionCorrect,
-                  showMCQResult && selectedAnswer === optionIndex && optionIndex !== news.mcqs[currentMCQIndex].correct_answer && styles.mcqOptionIncorrect,
-                ]}
-                onPress={() => !showMCQResult && setSelectedAnswer(optionIndex)}
-                disabled={showMCQResult}
-              >
-                <Text style={[
-                  styles.mcqOptionText,
-                  selectedAnswer === optionIndex && styles.mcqOptionTextSelected,
-                  showMCQResult && optionIndex === news.mcqs[currentMCQIndex].correct_answer && styles.mcqOptionTextCorrect,
-                ]}>
-                  {String.fromCharCode(65 + optionIndex)}. {option}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+        lastIndex = highlightIndex + highlight.content.length;
+      }
+    });
 
-          {showMCQResult && (
-            <View style={styles.mcqExplanation}>
-              <Text style={styles.mcqExplanationLabel}>Explanation:</Text>
-              <Text style={styles.mcqExplanationText}>
-                {news.mcqs[currentMCQIndex].explanation}
-              </Text>
-            </View>
-          )}
+    // Add remaining text
+    if (lastIndex < content.length) {
+      result.push(
+        <Text key="text-end" style={styles.contentText}>
+          {content.substring(lastIndex)}
+        </Text>
+      );
+    }
 
-          <View style={styles.mcqActions}>
-            {!showMCQResult ? (
-              <TouchableOpacity
-                style={[styles.mcqButton, selectedAnswer === null && styles.mcqButtonDisabled]}
-                onPress={() => setShowMCQResult(true)}
-                disabled={selectedAnswer === null}
-              >
-                <Text style={styles.mcqButtonText}>Check Answer</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.mcqNavigation}>
-                {currentMCQIndex > 0 && (
-                  <TouchableOpacity
-                    style={styles.mcqButton}
-                    onPress={() => {
-                      setCurrentMCQIndex(currentMCQIndex - 1);
-                      setSelectedAnswer(null);
-                      setShowMCQResult(false);
-                    }}
-                  >
-                    <Text style={styles.mcqButtonText}>Previous</Text>
-                  </TouchableOpacity>
-                )}
-                
-                {currentMCQIndex < news.mcqs.length - 1 ? (
-                  <TouchableOpacity
-                    style={styles.mcqButton}
-                    onPress={() => {
-                      setCurrentMCQIndex(currentMCQIndex + 1);
-                      setSelectedAnswer(null);
-                      setShowMCQResult(false);
-                    }}
-                  >
-                    <Text style={styles.mcqButtonText}>Next</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.mcqButton}
-                    onPress={() => {
-                      setCurrentMCQIndex(0);
-                      setSelectedAnswer(null);
-                      setShowMCQResult(false);
-                    }}
-                  >
-                    <Text style={styles.mcqButtonText}>Restart Quiz</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
-          </View>
-        </View>
-      ) : (
-        <Text style={styles.noContentText}>No MCQs available for this article.</Text>
-      )}
-    </View>
-  );
+    return result.length > 0 ? result : note.content;
+  };
 
-  const renderFlashcardsTab = () => (
-    <View style={styles.tabContent}>
-      <Text style={styles.sectionTitle}>Flashcards</Text>
-      {news.flashcards && news.flashcards.length > 0 ? (
-        <View style={styles.flashcardContainer}>
-          <View style={styles.flashcardHeader}>
-            <Text style={styles.flashcardCounter}>
-              Card {currentFlashcardIndex + 1} of {news.flashcards.length}
-            </Text>
-          </View>
+  const renderNotesTab = () => (
+    <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+      <Text style={styles.noteTitle}>{note.title}</Text>
+      <Text style={styles.noteDate}>
+        {new Date(note.created_at).toLocaleDateString()}
+      </Text>
+      
+      <View style={styles.summarySection}>
+        <Text style={styles.sectionTitle}>Summary</Text>
+        <Text style={styles.summaryText}>{note.summary}</Text>
+      </View>
 
-          <View style={styles.flashcard}>
-            <View style={styles.flashcardSide}>
-              <Text style={styles.flashcardLabel}>Front:</Text>
-              <Text style={styles.flashcardText}>
-                {news.flashcards[currentFlashcardIndex].front}
-              </Text>
-            </View>
-
-            {showFlashcardAnswer && (
-              <View style={styles.flashcardSide}>
-                <Text style={styles.flashcardLabel}>Back:</Text>
-                <Text style={styles.flashcardText}>
-                  {news.flashcards[currentFlashcardIndex].back}
-                </Text>
-              </View>
-            )}
-          </View>
-
-          <View style={styles.flashcardActions}>
-            <TouchableOpacity
-              style={styles.flashcardButton}
-              onPress={() => setShowFlashcardAnswer(!showFlashcardAnswer)}
-            >
-              <Text style={styles.flashcardButtonText}>
-                {showFlashcardAnswer ? 'Hide Answer' : 'Show Answer'}
-              </Text>
-            </TouchableOpacity>
-
-            <View style={styles.flashcardNavigation}>
-              {currentFlashcardIndex > 0 && (
-                <TouchableOpacity
-                  style={styles.flashcardButton}
-                  onPress={() => {
-                    setCurrentFlashcardIndex(currentFlashcardIndex - 1);
-                    setShowFlashcardAnswer(false);
-                  }}
-                >
-                  <Text style={styles.flashcardButtonText}>Previous</Text>
-                </TouchableOpacity>
-              )}
-              
-              {currentFlashcardIndex < news.flashcards.length - 1 ? (
-                <TouchableOpacity
-                  style={styles.flashcardButton}
-                  onPress={() => {
-                    setCurrentFlashcardIndex(currentFlashcardIndex + 1);
-                    setShowFlashcardAnswer(false);
-                  }}
-                >
-                  <Text style={styles.flashcardButtonText}>Next</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={styles.flashcardButton}
-                  onPress={() => {
-                    setCurrentFlashcardIndex(0);
-                    setShowFlashcardAnswer(false);
-                  }}
-                >
-                  <Text style={styles.flashcardButtonText}>Restart</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        </View>
-      ) : (
-        <Text style={styles.noContentText}>No flashcards available for this article.</Text>
-      )}
-    </View>
-  );
-
-  const renderMindmapTab = () => (
-    <View style={styles.tabContent}>
-      <Text style={styles.sectionTitle}>Mind Map</Text>
-      {news.mindmap && news.mindmap.topic ? (
-        <View style={styles.mindmapContainer}>
-          <View style={styles.mindmapTopic}>
-            <Text style={styles.mindmapTopicText}>{news.mindmap.topic}</Text>
-          </View>
-          
-          {news.mindmap.subtopics && news.mindmap.subtopics.map((subtopic, index) => (
-            <View key={index} style={styles.mindmapSubtopic}>
-              <View style={styles.mindmapSubtopicHeader}>
-                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-                <Text style={styles.mindmapSubtopicTitle}>{subtopic.name}</Text>
-              </View>
-              
-              {subtopic.children && subtopic.children.map((child, childIndex) => (
-                <View key={childIndex} style={styles.mindmapChild}>
-                  <Text style={styles.mindmapChildText}>• {child.name}</Text>
-                </View>
-              ))}
+      {note.key_points && note.key_points.length > 0 && (
+        <View style={styles.keyPointsSection}>
+          <Text style={styles.sectionTitle}>Key Points</Text>
+          {note.key_points.map((point, index) => (
+            <View key={index} style={styles.keyPoint}>
+              <Text style={styles.keyPointBullet}>•</Text>
+              <Text style={styles.keyPointText}>{point}</Text>
             </View>
           ))}
         </View>
+      )}
+
+      <View style={styles.contentSection}>
+        <Text style={styles.sectionTitle}>Full Content</Text>
+        <View style={styles.selectionHint}>
+          <Text style={styles.selectionHintText}>📝 Long press on text to highlight it</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.highlightButton}
+          onPress={openHighlightModal}
+        >
+          <Ionicons name="bookmark-outline" size={20} color={colors.primary} />
+          <Text style={styles.highlightButtonText}>Manual Highlight</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.selectTextButton}
+          onPress={() => Alert.prompt(
+            'Highlight Text',
+            'Enter the text you want to highlight:',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { 
+                text: 'Highlight', 
+                onPress: (text) => {
+                  if (text && text.trim()) {
+                    handleSaveSelectedText(text.trim());
+                  }
+                }
+              }
+            ],
+            'plain-text'
+          )}
+        >
+          <Ionicons name="text-outline" size={20} color={colors.primary} />
+          <Text style={styles.selectTextButtonText}>Select Text to Highlight</Text>
+        </TouchableOpacity>
+        <Text
+          style={styles.contentText}
+          onLongPress={() => Alert.prompt(
+            'Highlight Text',
+            'Enter the text you want to highlight:',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { 
+                text: 'Highlight', 
+                onPress: (text) => {
+                  if (text && text.trim()) {
+                    handleSaveSelectedText(text.trim());
+                  }
+                }
+              }
+            ],
+            'plain-text'
+          )}
+        >
+          {renderHighlightedContent()}
+        </Text>
+      </View>
+         </ScrollView>
+   );
+
+       const renderQuizTab = () => (
+      <ScrollView style={styles.quizContainer} showsVerticalScrollIndicator={false}>
+        <View style={styles.quizHeader}>
+          <Text style={styles.quizTitle}>AI Quiz</Text>
+          <Text style={styles.quizSubtitle}>
+            Test your knowledge with AI-generated questions from this note
+          </Text>
+        </View>
+
+        {quizLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.loadingText}>Generating quiz questions...</Text>
+          </View>
+                 ) : quizError ? (
+           <View style={styles.emptyContainer}>
+             <Ionicons name="alert-circle-outline" size={64} color={colors.textTertiary} />
+             <Text style={styles.emptyTitle}>Error Loading Quiz</Text>
+             <Text style={styles.emptySubtitle}>
+               {quizError || 'Failed to load quiz. Please try again.'}
+             </Text>
+             <TouchableOpacity
+               style={styles.restartButton}
+               onPress={() => {
+                 console.log(`🔄 [QUIZ REFETCH] Manual refetch triggered for noteId: ${note?.id}`);
+                 refetchQuiz();
+               }}
+             >
+               <Ionicons name="refresh" size={20} color={colors.textPrimary} />
+               <Text style={styles.restartButtonText}>Retry</Text>
+             </TouchableOpacity>
+           </View>
+        ) : !quizData ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="help-circle-outline" size={64} color={colors.textTertiary} />
+            <Text style={styles.emptyTitle}>No Quiz Available</Text>
+            <Text style={styles.emptySubtitle}>
+              Quiz questions will be generated automatically when you open this tab.
+            </Text>
+          </View>
+        ) : (
+         <View style={styles.quizContent}>
+           {/* Quiz Progress */}
+           <View style={styles.quizProgress}>
+             <Text style={styles.quizProgressText}>
+               Question {currentQuizIndex + 1} of {quizData.length}
+             </Text>
+             <Text style={styles.quizProgressText}>
+               Score: {score} / {answeredQuestions.size}
+             </Text>
+           </View>
+
+           {/* Quiz Question */}
+           <View style={styles.questionContainer}>
+             <Text style={styles.questionText}>
+               {quizData?.[currentQuizIndex]?.question || 'Loading question...'}
+             </Text>
+           </View>
+
+           {/* Quiz Options */}
+           <View style={styles.optionsContainer}>
+             {quizData?.[currentQuizIndex]?.options?.map((option, index) => (
+               <TouchableOpacity
+                 key={index}
+                 style={[
+                   styles.optionCard,
+                   selectedAnswer === index && styles.selectedOptionCard,
+                   showAnswer && index === quizData?.[currentQuizIndex]?.correct_answer && styles.correctOptionCard,
+                   showAnswer && selectedAnswer === index && index !== quizData?.[currentQuizIndex]?.correct_answer && styles.wrongOptionCard,
+                 ]}
+                 onPress={() => handleAnswerSelect(index)}
+                 disabled={showAnswer} // Disable selection after answer is shown
+               >
+                 <Text style={[
+                   styles.optionText,
+                   selectedAnswer === index && styles.selectedOptionText,
+                   showAnswer && index === quizData?.[currentQuizIndex]?.correct_answer && styles.correctOptionText,
+                   showAnswer && selectedAnswer === index && index !== quizData?.[currentQuizIndex]?.correct_answer && styles.wrongOptionText,
+                 ]}>
+                   {option}
+                 </Text>
+               </TouchableOpacity>
+             ))}
+           </View>
+
+           {/* Navigation Buttons */}
+           <View style={styles.quizNavigation}>
+             <TouchableOpacity
+               style={[styles.navButton, currentQuizIndex === 0 && styles.disabledButton]}
+               onPress={handlePreviousQuestion}
+               disabled={currentQuizIndex === 0}
+             >
+               <Ionicons name="chevron-back" size={20} color={colors.textPrimary} />
+               <Text style={styles.navButtonText}>Previous</Text>
+             </TouchableOpacity>
+
+                            <TouchableOpacity
+                 style={[styles.navButton, currentQuizIndex === (quizData?.length || 0) - 1 && styles.disabledButton]}
+                 onPress={handleNextQuestion}
+                 disabled={currentQuizIndex === (quizData?.length || 0) - 1}
+             >
+               <Text style={styles.navButtonText}>Next</Text>
+               <Ionicons name="chevron-forward" size={20} color={colors.textPrimary} />
+             </TouchableOpacity>
+           </View>
+
+                       {/* Restart Button */}
+            <TouchableOpacity
+              style={styles.restartButton}
+              onPress={() => {
+                console.log(`🔄 [QUIZ REFETCH] New Quiz button clicked for noteId: ${note?.id}`);
+                refetchQuiz();
+                setCurrentQuizIndex(0);
+                setSelectedAnswer(null);
+                setShowAnswer(false);
+                setScore(0);
+                setAnsweredQuestions(new Set());
+              }}
+            >
+              <Ionicons name="refresh" size={20} color={colors.textPrimary} />
+              <Text style={styles.restartButtonText}>New Quiz</Text>
+            </TouchableOpacity>
+         </View>
+       )}
+          </ScrollView>
+   );
+
+       const renderFlashcardsTab = () => (
+      <ScrollView style={styles.flashcardsContainer} showsVerticalScrollIndicator={false}>
+        <View style={styles.flashcardsHeader}>
+          <Text style={styles.flashcardsTitle}>Flashcards</Text>
+          <Text style={styles.flashcardsSubtitle}>
+            Review key concepts with AI-generated flashcards
+          </Text>
+        </View>
+
+        {flashcardsLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.loadingText}>Generating flashcards...</Text>
+          </View>
+                 ) : flashcardsError ? (
+           <View style={styles.emptyContainer}>
+             <Ionicons name="alert-circle-outline" size={64} color={colors.textTertiary} />
+             <Text style={styles.emptyTitle}>Error Loading Flashcards</Text>
+             <Text style={styles.emptySubtitle}>
+               {flashcardsError || 'Failed to load flashcards. Please try again.'}
+             </Text>
+             <TouchableOpacity
+               style={styles.restartButton}
+               onPress={() => {
+                 console.log(`🔄 [FLASHCARDS REFETCH] Manual refetch triggered for noteId: ${note?.id}`);
+                 refetchFlashcards();
+               }}
+             >
+               <Ionicons name="refresh" size={20} color={colors.textPrimary} />
+               <Text style={styles.restartButtonText}>Retry</Text>
+             </TouchableOpacity>
+           </View>
+        ) : !flashcardsData ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="card-outline" size={64} color={colors.textTertiary} />
+            <Text style={styles.emptyTitle}>No Flashcards Available</Text>
+            <Text style={styles.emptySubtitle}>
+              Flashcards will be generated automatically when you open this tab.
+            </Text>
+          </View>
+        ) : (
+         <View style={styles.flashcardsContent}>
+           {/* Flashcard Progress */}
+           <View style={styles.flashcardProgress}>
+             <Text style={styles.flashcardProgressText}>
+               Card {currentFlashcardIndex + 1} of {flashcardsData.length}
+             </Text>
+           </View>
+
+           {/* Flashcard */}
+           <TouchableOpacity
+             style={styles.flashcardContainer}
+             onPress={() => setFlashcardFlipped(!flashcardFlipped)}
+           >
+             <View style={styles.flashcard}>
+               <Text style={styles.flashcardText}>
+                 {flashcardFlipped ? flashcardsData?.[currentFlashcardIndex]?.answer : flashcardsData?.[currentFlashcardIndex]?.question || 'Loading...'}
+               </Text>
+             </View>
+           </TouchableOpacity>
+
+
+
+           {/* Navigation Buttons */}
+           <View style={styles.flashcardNavigation}>
+             <TouchableOpacity
+               style={[styles.navButton, currentFlashcardIndex === 0 && styles.disabledButton]}
+               onPress={() => { setCurrentFlashcardIndex(Math.max(0, currentFlashcardIndex - 1)); setFlashcardFlipped(false); }}
+               disabled={currentFlashcardIndex === 0}
+             >
+               <Ionicons name="chevron-back" size={20} color={colors.textPrimary} />
+               <Text style={styles.navButtonText}>Previous</Text>
+             </TouchableOpacity>
+
+             <TouchableOpacity
+               style={[styles.navButton, currentFlashcardIndex === (flashcardsData?.length || 0) - 1 && styles.disabledButton]}
+               onPress={() => { setCurrentFlashcardIndex(Math.min((flashcardsData?.length || 0) - 1, currentFlashcardIndex + 1)); setFlashcardFlipped(false); }}
+               disabled={currentFlashcardIndex === (flashcardsData?.length || 0) - 1}
+             >
+               <Text style={styles.navButtonText}>Next</Text>
+               <Ionicons name="chevron-forward" size={20} color={colors.textPrimary} />
+             </TouchableOpacity>
+           </View>
+
+           {/* Pagination Dots */}
+           <View style={styles.paginationContainer}>
+             {flashcardsData?.map((_, index) => (
+               <TouchableOpacity
+                 key={index}
+                 style={[
+                   styles.paginationDot,
+                   index === currentFlashcardIndex && styles.activePaginationDot
+                 ]}
+                 onPress={() => { setCurrentFlashcardIndex(index); setFlashcardFlipped(false); }}
+               />
+             ))}
+           </View>
+
+                       {/* Restart Button */}
+            <TouchableOpacity
+              style={styles.restartButton}
+              onPress={() => {
+                console.log(`🔄 [FLASHCARDS REFETCH] New Flashcards button clicked for noteId: ${note?.id}`);
+                refetchFlashcards();
+                setCurrentFlashcardIndex(0);
+                setFlashcardFlipped(false);
+              }}
+            >
+              <Ionicons name="refresh" size={20} color={colors.textPrimary} />
+              <Text style={styles.restartButtonText}>New Flashcards</Text>
+            </TouchableOpacity>
+         </View>
+       )}
+     </ScrollView>
+   );
+
+   const renderCompareTab = () => (
+     <ScrollView style={styles.compareContainer} showsVerticalScrollIndicator={false}>
+       <View style={styles.compareHeader}>
+         <Text style={styles.compareTitle}>Compare Content</Text>
+         <Text style={styles.compareSubtitle}>
+           Compare your content with this note to find similarities and differences
+         </Text>
+       </View>
+
+       {/* Input Section */}
+       <View style={styles.compareInputSection}>
+         <Text style={styles.compareInputLabel}>Your Content:</Text>
+         <TextInput
+           style={styles.compareTextInput}
+           placeholder="Enter your content, notes, or text to compare..."
+           placeholderTextColor={colors.textTertiary}
+           value={compareContent}
+           onChangeText={setCompareContent}
+           multiline
+           numberOfLines={6}
+           textAlignVertical="top"
+         />
+         
+         <TouchableOpacity
+           style={[
+             styles.compareButton,
+             (!compareContent.trim() || compareLoading) && styles.compareButtonDisabled
+           ]}
+           onPress={handleCompare}
+           disabled={!compareContent.trim() || compareLoading}
+         >
+           {compareLoading ? (
+             <ActivityIndicator size="small" color={colors.textPrimary} />
+           ) : (
+             <Ionicons name="git-compare" size={20} color={colors.textPrimary} />
+           )}
+           <Text style={styles.compareButtonText}>
+             {compareLoading ? 'Comparing...' : 'Compare with Note'}
+           </Text>
+         </TouchableOpacity>
+       </View>
+
+       {/* Results Section */}
+       {compareResult && (
+         <View style={styles.compareResultsSection}>
+           <Text style={styles.compareResultsTitle}>Comparison Results</Text>
+           
+           {/* Similarity Score */}
+           <View style={styles.similarityScoreContainer}>
+             <Text style={styles.similarityScoreLabel}>Similarity Score:</Text>
+             <View style={styles.similarityScoreBar}>
+               <View 
+                 style={[
+                   styles.similarityScoreFill, 
+                   { width: `${compareResult.similarityScore || 0}%` }
+                 ]} 
+               />
+             </View>
+             <Text style={styles.similarityScoreText}>{compareResult.similarityScore || 0}%</Text>
+           </View>
+
+           {/* Similarities */}
+           {compareResult.similarities && compareResult.similarities.length > 0 && (
+             <View style={styles.comparisonSection}>
+               <Text style={styles.comparisonSectionTitle}>
+                 <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+                 {' '}Similarities
+               </Text>
+               {compareResult.similarities.map((similarity, index) => (
+                 <View key={index} style={styles.comparisonItem}>
+                   <Text style={styles.comparisonItemText}>• {similarity}</Text>
+                 </View>
+               ))}
+             </View>
+           )}
+
+           {/* Differences */}
+           {compareResult.differences && compareResult.differences.length > 0 && (
+             <View style={styles.comparisonSection}>
+               <Text style={styles.comparisonSectionTitle}>
+                 <Ionicons name="close-circle" size={16} color={colors.error} />
+                 {' '}Differences
+               </Text>
+               {compareResult.differences.map((difference, index) => (
+                 <View key={index} style={styles.comparisonItem}>
+                   <Text style={styles.comparisonItemText}>• {difference}</Text>
+                 </View>
+               ))}
+             </View>
+           )}
+         </View>
+       )}
+     </ScrollView>
+   );
+
+       const renderMindMapTab = () => (
+      <View style={styles.mindMapContainer}>
+        <MindMapViewer noteId={note?.id} onClose={onClose} />
+      </View>
+    );
+
+   const renderHighlightTab = () => (
+    <View style={styles.highlightContainer}>
+      <View style={styles.highlightHeader}>
+        <Text style={styles.highlightTitle}>Highlights</Text>
+        <Text style={styles.highlightSubtitle}>
+          Select text in the Notes tab to create highlights
+        </Text>
+      </View>
+
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading highlights...</Text>
+        </View>
+      ) : highlights.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="bookmark-outline" size={64} color={colors.textTertiary} />
+          <Text style={styles.emptyTitle}>No Highlights Yet</Text>
+          <Text style={styles.emptySubtitle}>
+            Select text in the Notes tab to create highlights for quick reference.
+          </Text>
+        </View>
       ) : (
-        <Text style={styles.noContentText}>No mind map available for this article.</Text>
+        <ScrollView style={styles.highlightsList} showsVerticalScrollIndicator={false}>
+          {highlights.map((highlight) => (
+            <View key={highlight.id} style={styles.highlightCard}>
+              <View style={styles.highlightContent}>
+                <Text style={styles.highlightText}>{highlight.content}</Text>
+                {highlight.note && (
+                  <Text style={styles.highlightNote}>{highlight.note}</Text>
+                )}
+              </View>
+              <Text style={styles.highlightDate}>
+                {new Date(highlight.created_at).toLocaleDateString()}
+              </Text>
+            </View>
+          ))}
+        </ScrollView>
       )}
     </View>
   );
 
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'article':
-        return renderArticleTab();
-      case 'mcqs':
-        return renderMCQsTab();
-      case 'flashcards':
-        return renderFlashcardsTab();
-      case 'mindmap':
-        return renderMindmapTab();
-      default:
-        return renderArticleTab();
-    }
-  };
+  if (!note) return null;
 
   return (
     <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
+      isVisible={visible}
+      onBackdropPress={onClose}
+      style={styles.modal}
+      animationIn="slideInUp"
+      animationOut="slideOutDown"
+      animationInTiming={300}
+      animationOutTiming={300}
+      backdropTransitionInTiming={300}
+      backdropTransitionOutTiming={300}
+      useNativeDriver={true}
+      hideModalContentWhileAnimating={true}
     >
       <View style={styles.container}>
-        <View style={styles.gradient}>
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <Ionicons name="close" size={24} color={colors.textPrimary} />
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Ionicons name="close" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {note.title}
+          </Text>
+          <View style={styles.headerSpacer} />
+        </View>
+
+                 <View style={styles.tabs}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabsScrollContainer}
+            style={styles.tabsScrollView}
+          >
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'notes' && styles.activeTab]}
+              onPress={() => {
+                console.log(`📱 [TAB SWITCH] Switching to Notes tab for noteId: ${note?.id}`);
+                setActiveTab('notes');
+              }}
+            >
+              <Ionicons 
+                name="document-text" 
+                size={20} 
+                color={activeTab === 'notes' ? colors.primary : colors.textSecondary} 
+              />
+              <Text style={[styles.tabText, activeTab === 'notes' && styles.activeTabText]}>
+                Notes
+              </Text>
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>News Detail</Text>
-            <View style={styles.headerSpacer} />
-          </View>
-
-          {/* Tabs */}
-          <View style={styles.tabsContainer}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <TouchableOpacity
-                style={[styles.tab, activeTab === 'article' && styles.activeTab]}
-                onPress={() => setActiveTab('article')}
-              >
-                <Ionicons 
-                  name="newspaper" 
-                  size={16} 
-                  color={activeTab === 'article' ? colors.white : colors.textSecondary} 
-                />
-                <Text style={[styles.tabText, activeTab === 'article' && styles.activeTabText]}>
-                  Article
-                </Text>
-              </TouchableOpacity>
-              
-              {news.mcqs?.length > 0 && (
-                <TouchableOpacity
-                  style={[styles.tab, activeTab === 'mcqs' && styles.activeTab]}
-                  onPress={() => setActiveTab('mcqs')}
-                >
-                  <Ionicons 
-                    name="help-circle" 
-                    size={16} 
-                    color={activeTab === 'mcqs' ? colors.white : colors.textSecondary} 
-                  />
-                  <Text style={[styles.tabText, activeTab === 'mcqs' && styles.activeTabText]}>
-                    MCQs ({news.mcqs.length})
-                  </Text>
-                </TouchableOpacity>
-              )}
-              
-              {news.flashcards?.length > 0 && (
-                <TouchableOpacity
-                  style={[styles.tab, activeTab === 'flashcards' && styles.activeTab]}
-                  onPress={() => setActiveTab('flashcards')}
-                >
-                  <Ionicons 
-                    name="card" 
-                    size={16} 
-                    color={activeTab === 'flashcards' ? colors.white : colors.textSecondary} 
-                  />
-                  <Text style={[styles.tabText, activeTab === 'flashcards' && styles.activeTabText]}>
-                    Cards ({news.flashcards.length})
-                  </Text>
-                </TouchableOpacity>
-              )}
-              
-              {news.mindmap?.subtopics?.length > 0 && (
-                <TouchableOpacity
-                  style={[styles.tab, activeTab === 'mindmap' && styles.activeTab]}
-                  onPress={() => setActiveTab('mindmap')}
-                >
-                  <Ionicons 
-                    name="git-network" 
-                    size={16} 
-                    color={activeTab === 'mindmap' ? colors.white : colors.textSecondary} 
-                  />
-                  <Text style={[styles.tabText, activeTab === 'mindmap' && styles.activeTabText]}>
-                    Mind Map
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </ScrollView>
-          </View>
-
-          {/* Content */}
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            {renderTabContent()}
+            
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'quiz' && styles.activeTab]}
+              onPress={() => {
+                console.log(`📱 [TAB SWITCH] Switching to Quiz tab for noteId: ${note?.id}`);
+                setActiveTab('quiz');
+              }}
+            >
+              <Ionicons 
+                name="help-circle" 
+                size={20} 
+                color={activeTab === 'quiz' ? colors.primary : colors.textSecondary} 
+              />
+              <Text style={[styles.tabText, activeTab === 'quiz' && styles.activeTabText]}>
+                Quiz
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'flashcards' && styles.activeTab]}
+              onPress={() => {
+                console.log(`📱 [TAB SWITCH] Switching to Flashcards tab for noteId: ${note?.id}`);
+                setActiveTab('flashcards');
+              }}
+            >
+              <Ionicons 
+                name="card" 
+                size={20} 
+                color={activeTab === 'flashcards' ? colors.primary : colors.textSecondary} 
+              />
+              <Text style={[styles.tabText, activeTab === 'flashcards' && styles.activeTabText]}>
+                Cards
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'compare' && styles.activeTab]}
+              onPress={() => {
+                console.log(`📱 [TAB SWITCH] Switching to Compare tab for noteId: ${note?.id}`);
+                setActiveTab('compare');
+              }}
+            >
+              <Ionicons 
+                name="git-compare" 
+                size={20} 
+                color={activeTab === 'compare' ? colors.primary : colors.textSecondary} 
+              />
+              <Text style={[styles.tabText, activeTab === 'compare' && styles.activeTabText]}>
+                Compare
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'mindmap' && styles.activeTab]}
+              onPress={() => {
+                console.log(`📱 [TAB SWITCH] Switching to Mind Map tab for noteId: ${note?.id}`);
+                setActiveTab('mindmap');
+              }}
+            >
+              <Ionicons 
+                name="git-network" 
+                size={20} 
+                color={activeTab === 'mindmap' ? colors.primary : colors.textSecondary} 
+              />
+              <Text style={[styles.tabText, activeTab === 'mindmap' && styles.activeTabText]}>
+                Mind Map
+              </Text>
+            </TouchableOpacity>
           </ScrollView>
         </View>
+
+                           <View style={styles.content}>
+            {activeTab === 'notes' && renderNotesTab()}
+            {activeTab === 'quiz' && renderQuizTab()}
+            {activeTab === 'flashcards' && renderFlashcardsTab()}
+            {activeTab === 'compare' && renderCompareTab()}
+            {activeTab === 'mindmap' && renderMindMapTab()}
+            {activeTab === 'highlights' && renderHighlightTab()}
+          </View>
       </View>
+
+      {/* Highlight Modal */}
+      <Modal
+        isVisible={showHighlightModal}
+        onBackdropPress={cancelHighlightModal}
+        style={styles.highlightModal}
+        animationIn="slideInUp"
+        animationOut="slideOutDown"
+      >
+        <View style={styles.highlightModalContent}>
+          <View style={styles.highlightModalHeader}>
+            <Text style={styles.highlightModalTitle}>Create Highlight</Text>
+            <TouchableOpacity
+              onPress={cancelHighlightModal}
+              style={styles.highlightModalCloseButton}
+            >
+              <Ionicons name="close" size={24} color={colors.textPrimary} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.highlightModalBody}>
+            <View style={styles.highlightInputContainer}>
+              <Text style={styles.highlightInputLabel}>Selected Text:</Text>
+              <View style={styles.selectedTextContainer}>
+                <Text style={styles.selectedText}>{highlightText}</Text>
+              </View>
+            </View>
+
+            <View style={styles.highlightInputContainer}>
+              <Text style={styles.highlightInputLabel}>Add Note (Optional):</Text>
+              <TextInput
+                style={styles.highlightTextInput}
+                placeholder="Add your thoughts or comments..."
+                placeholderTextColor={colors.textTertiary}
+                value={highlightNote}
+                onChangeText={setHighlightNote}
+                multiline
+                numberOfLines={3}
+                autoFocus={true}
+              />
+            </View>
+          </View>
+
+          <View style={styles.highlightModalActions}>
+            <TouchableOpacity
+              style={styles.highlightModalCancelButton}
+              onPress={cancelHighlightModal}
+            >
+              <Text style={styles.highlightModalCancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.highlightModalSaveButton, !highlightText.trim() && styles.highlightModalSaveButtonDisabled]}
+              onPress={saveHighlight}
+              disabled={!highlightText.trim()}
+            >
+              <Ionicons name="bookmark" size={20} color={colors.textPrimary} />
+              <Text style={styles.highlightModalSaveButtonText}>Save Highlight</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  modal: {
+    margin: 0,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background,
   },
-  gradient: {
-    flex: 1,
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 15,
-  },
-  closeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surfaceSecondary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  tabsContainer: {
+    paddingVertical: 16,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    paddingBottom: 10,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    textAlign: 'center',
+    marginHorizontal: 16,
+  },
+  headerSpacer: {
+    width: 32,
+  },
+  tabs: {
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingVertical: 4,
+  },
+  tabsScrollView: {
+    flexGrow: 0,
+  },
+  tabsScrollContainer: {
+    alignItems: 'center',
+    paddingHorizontal: 8,
   },
   tab: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    paddingVertical: 8,
     marginHorizontal: 4,
-    borderRadius: 20,
-    backgroundColor: colors.surfaceSecondary,
-    gap: 6,
+    borderRadius: 8,
+    minWidth: 80,
+    // Better touch target
+    minHeight: 44,
+    // Smooth transitions
+    transform: [{ scale: 1 }],
   },
   activeTab: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primary + '15', // 15% opacity
+    borderBottomWidth: 2,
+    borderBottomColor: colors.primary,
+    transform: [{ scale: 1.05 }],
   },
   tabText: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.textSecondary,
+    marginLeft: 6,
+    // Better text rendering
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   activeTabText: {
-    color: colors.white,
+    color: colors.primary,
+    fontWeight: '700',
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
   },
   tabContent: {
-    paddingVertical: 20,
+    flex: 1,
+    padding: 20,
   },
-  articleHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  categoryBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  categoryText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.white,
-    textTransform: 'uppercase',
-  },
-  date: {
-    fontSize: 12,
-    color: colors.textTertiary,
-  },
-  articleTitle: {
+  noteTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: colors.textPrimary,
-    lineHeight: 32,
-    marginBottom: 16,
+    marginBottom: 8,
   },
-  sourceContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  sourceLabel: {
+  noteDate: {
     fontSize: 14,
-    color: colors.textSecondary,
-    marginRight: 8,
-  },
-  sourceLink: {
-    fontSize: 14,
-    color: colors.primary,
-    textDecorationLine: 'underline',
+    color: colors.textTertiary,
+    marginBottom: 24,
   },
   summarySection: {
+    marginBottom: 24,
+  },
+  keyPointsSection: {
     marginBottom: 24,
   },
   contentSection: {
@@ -541,11 +1067,26 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: colors.textPrimary,
     marginBottom: 12,
   },
   summaryText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    lineHeight: 24,
+  },
+  keyPoint: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  keyPointBullet: {
+    fontSize: 16,
+    color: colors.primary,
+    marginRight: 8,
+  },
+  keyPointText: {
+    flex: 1,
     fontSize: 16,
     color: colors.textSecondary,
     lineHeight: 24,
@@ -555,215 +1096,688 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 24,
   },
-  // MCQ Styles (matching notes design)
-  mcqContainer: {
-    backgroundColor: colors.surfaceSecondary,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  mcqHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  mcqCounter: {
-    fontSize: 14,
-    color: colors.textSecondary,
+  highlightedText: {
+    backgroundColor: '#ffebee',
+    color: '#d32f2f',
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
     fontWeight: '600',
   },
-  mcqScore: {
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  mcqQuestion: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    marginBottom: 16,
-    lineHeight: 22,
-  },
-  mcqOptions: {
-    marginBottom: 16,
-  },
-  mcqOption: {
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 8,
-    backgroundColor: colors.surface,
-  },
-  mcqOptionSelected: {
-    backgroundColor: colors.primary + '20',
-    borderColor: colors.primary,
-  },
-  mcqOptionCorrect: {
-    backgroundColor: colors.success + '20',
-    borderColor: colors.success,
-  },
-  mcqOptionIncorrect: {
-    backgroundColor: colors.error + '20',
-    borderColor: colors.error,
-  },
-  mcqOptionText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  mcqOptionTextSelected: {
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  mcqOptionTextCorrect: {
-    color: colors.success,
-    fontWeight: '600',
-  },
-  mcqExplanation: {
-    backgroundColor: colors.surface,
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  mcqExplanationLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.primary,
-    marginBottom: 4,
-  },
-  mcqExplanationText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  mcqActions: {
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  mcqButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginHorizontal: 8,
-  },
-  mcqButtonDisabled: {
-    backgroundColor: colors.textTertiary,
-  },
-  mcqButtonText: {
-    color: colors.white,
+  loadingText: {
     fontSize: 16,
+    color: colors.textSecondary,
+    marginTop: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  emptyTitle: {
+    fontSize: 18,
     fontWeight: '600',
+    color: colors.textPrimary,
+    marginTop: 16,
+    marginBottom: 8,
   },
-  mcqNavigation: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  // Flashcard Styles (matching notes design)
-  flashcardContainer: {
-    backgroundColor: colors.surfaceSecondary,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  flashcardHeader: {
-    marginBottom: 16,
-  },
-  flashcardCounter: {
+  emptySubtitle: {
     fontSize: 14,
     color: colors.textSecondary,
-    fontWeight: '600',
     textAlign: 'center',
+    lineHeight: 20,
   },
-  flashcard: {
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-    padding: 16,
+  highlightContainer: {
+    flex: 1,
+    padding: 20,
+  },
+  highlightHeader: {
+    marginBottom: 24,
+  },
+  highlightTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 8,
+  },
+  highlightSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  highlightsList: {
+    flex: 1,
+  },
+  highlightCard: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 16,
+    padding: 20,
     marginBottom: 16,
-    minHeight: 120,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
   },
-  flashcardSide: {
+  highlightContent: {
     marginBottom: 12,
   },
-  flashcardLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textTertiary,
-    marginBottom: 4,
-    textTransform: 'uppercase',
-  },
-  flashcardText: {
+  highlightText: {
     fontSize: 16,
     color: colors.textPrimary,
     lineHeight: 22,
   },
-  flashcardActions: {
-    alignItems: 'center',
+  highlightNote: {
+    fontSize: 14,
+    color: colors.textTertiary,
+    marginTop: 4,
   },
-  flashcardButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+  highlightDate: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    textAlign: 'right',
+  },
+  selectionHint: {
+    backgroundColor: colors.surfaceSecondary,
     borderRadius: 8,
-    marginHorizontal: 8,
-    marginBottom: 8,
+    padding: 12,
+    alignItems: 'center',
+    marginBottom: 16,
   },
-  flashcardButtonText: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: '600',
+  selectionHintText: {
+    fontSize: 14,
+    color: colors.textTertiary,
+    fontStyle: 'italic',
   },
-  flashcardNavigation: {
+  highlightButton: {
     flexDirection: 'row',
-    gap: 12,
-  },
-  // Mindmap Styles (matching notes design)
-  mindmapContainer: {
+    alignItems: 'center',
     backgroundColor: colors.surfaceSecondary,
     borderRadius: 12,
-    padding: 16,
-  },
-  mindmapTopic: {
-    backgroundColor: colors.primary + '20',
-    padding: 16,
-    borderRadius: 8,
+    padding: 12,
     marginBottom: 16,
-    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
   },
-  mindmapTopicText: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  highlightButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
     color: colors.primary,
-    textAlign: 'center',
+    marginLeft: 8,
   },
-  mindmapSubtopic: {
-    marginBottom: 16,
-  },
-  mindmapSubtopicHeader: {
+  selectTextButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  selectTextButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+    marginLeft: 8,
+  },
+  highlightModal: {
+    margin: 0,
+    justifyContent: 'flex-end',
+  },
+  highlightModalContent: {
+    backgroundColor: colors.background,
+    borderRadius: 20,
+    padding: 20,
+    maxHeight: '70%',
+  },
+  highlightModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  highlightModalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  highlightModalCloseButton: {
+    padding: 4,
+  },
+  highlightModalBody: {
+    marginBottom: 20,
+  },
+  highlightInputContainer: {
+    marginBottom: 16,
+  },
+  highlightInputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
     marginBottom: 8,
   },
-  mindmapSubtopicTitle: {
+  selectedTextContainer: {
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: 8,
+    padding: 12,
+  },
+  selectedText: {
+    fontSize: 16,
+    color: colors.textPrimary,
+    lineHeight: 22,
+  },
+  highlightTextInput: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+    color: colors.textPrimary,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    minHeight: 80,
+  },
+  highlightModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  highlightModalCancelButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  highlightModalCancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  highlightModalSaveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  highlightModalSaveButtonDisabled: {
+    backgroundColor: colors.surfaceSecondary,
+    opacity: 0.7,
+  },
+  highlightModalSaveButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.textPrimary,
     marginLeft: 8,
   },
-  mindmapChild: {
-    marginLeft: 24,
-    marginBottom: 4,
+  // Quiz Styles
+  quizProgress: {
+    alignItems: 'center',
+    marginBottom: 20,
   },
-  mindmapChildText: {
+  quizProgressText: {
     fontSize: 14,
     color: colors.textSecondary,
-    lineHeight: 20,
+    fontWeight: '500',
   },
-  noContentText: {
+  questionContainer: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  questionText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    lineHeight: 26,
+  },
+  optionsContainer: {
+    marginBottom: 20,
+  },
+  optionCard: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  selectedOptionCard: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  correctOptionCard: {
+    backgroundColor: '#4caf50',
+    borderColor: '#4caf50',
+  },
+  wrongOptionCard: {
+    backgroundColor: '#f44336',
+    borderColor: '#f44336',
+  },
+  optionText: {
     fontSize: 16,
-    color: colors.textTertiary,
-    textAlign: 'center',
-    fontStyle: 'italic',
-    marginTop: 40,
+    color: colors.textSecondary,
+    lineHeight: 22,
   },
-});
+  selectedOptionText: {
+    color: colors.textPrimary,
+    fontWeight: '600',
+  },
+  correctOptionText: {
+    color: '#ffffff',
+    fontWeight: '600',
+  },
+  wrongOptionText: {
+    color: '#ffffff',
+    fontWeight: '600',
+  },
+  quizNavigation: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  navButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+  },
+  disabledButton: {
+    backgroundColor: colors.surfaceSecondary,
+    opacity: 0.5,
+  },
+  navButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  restartButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSecondary,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
+    gap: 8,
+    alignSelf: 'center',
+  },
+  restartButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  // Flashcard Styles
+  flashcardProgress: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  flashcardProgressText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  flashcardContainer: {
+    marginBottom: 20,
+  },
+  flashcard: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 16,
+    padding: 32,
+    minHeight: 200,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  flashcardText: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    textAlign: 'center',
+    lineHeight: 28,
+  },
+  flashcardQuestionContainer: {
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+  },
+  flashcardQuestionText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  flashcardNavigation: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 20,
+    gap: 8,
+  },
+  paginationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.surfaceSecondary,
+  },
+     activePaginationDot: {
+     backgroundColor: colors.primary,
+   },
+   // Quiz Container Styles
+   quizContainer: {
+     flex: 1,
+     padding: 20,
+   },
+   quizHeader: {
+     marginBottom: 24,
+   },
+   quizTitle: {
+     fontSize: 20,
+     fontWeight: '600',
+     color: colors.textPrimary,
+     marginBottom: 8,
+   },
+   quizSubtitle: {
+     fontSize: 14,
+     color: colors.textSecondary,
+     lineHeight: 20,
+   },
+   quizContent: {
+     flex: 1,
+   },
+   quizCard: {
+     backgroundColor: colors.cardBackground,
+     borderRadius: 16,
+     padding: 24,
+     alignItems: 'center',
+     borderWidth: 1,
+     borderColor: colors.cardBorder,
+   },
+   quizCardTitle: {
+     fontSize: 18,
+     fontWeight: '600',
+     color: colors.textPrimary,
+     marginTop: 16,
+     marginBottom: 8,
+   },
+   quizCardDescription: {
+     fontSize: 14,
+     color: colors.textSecondary,
+     textAlign: 'center',
+     lineHeight: 20,
+     marginBottom: 24,
+   },
+   quizButton: {
+     flexDirection: 'row',
+     alignItems: 'center',
+     backgroundColor: colors.primary,
+     paddingHorizontal: 20,
+     paddingVertical: 12,
+     borderRadius: 25,
+     gap: 8,
+   },
+   quizButtonText: {
+     fontSize: 16,
+     fontWeight: '600',
+     color: colors.textPrimary,
+   },
+   // Flashcards Container Styles
+   flashcardsContainer: {
+     flex: 1,
+     padding: 20,
+   },
+   flashcardsHeader: {
+     marginBottom: 24,
+   },
+   flashcardsTitle: {
+     fontSize: 20,
+     fontWeight: '600',
+     color: colors.textPrimary,
+     marginBottom: 8,
+   },
+   flashcardsSubtitle: {
+     fontSize: 14,
+     color: colors.textSecondary,
+     lineHeight: 20,
+   },
+   flashcardsContent: {
+     flex: 1,
+   },
+   flashcardsCard: {
+     backgroundColor: colors.cardBackground,
+     borderRadius: 16,
+     padding: 24,
+     alignItems: 'center',
+     borderWidth: 1,
+     borderColor: colors.cardBorder,
+   },
+   flashcardsCardTitle: {
+     fontSize: 18,
+     fontWeight: '600',
+     color: colors.textPrimary,
+     marginTop: 16,
+     marginBottom: 8,
+   },
+   flashcardsCardDescription: {
+     fontSize: 14,
+     color: colors.textSecondary,
+     textAlign: 'center',
+     lineHeight: 20,
+     marginBottom: 24,
+   },
+   flashcardsButton: {
+     flexDirection: 'row',
+     alignItems: 'center',
+     backgroundColor: colors.primary,
+     paddingHorizontal: 20,
+     paddingVertical: 12,
+     borderRadius: 25,
+     gap: 8,
+   },
+   flashcardsButtonText: {
+     fontSize: 16,
+     fontWeight: '600',
+     color: colors.textPrimary,
+   },
+   // Mind Map Container Styles
+   mindMapContainer: {
+     flex: 1,
+     padding: 20,
+   },
+   mindMapHeader: {
+     marginBottom: 24,
+   },
+   mindMapTitle: {
+     fontSize: 20,
+     fontWeight: '600',
+     color: colors.textPrimary,
+     marginBottom: 8,
+   },
+   mindMapSubtitle: {
+     fontSize: 14,
+     color: colors.textSecondary,
+     lineHeight: 20,
+   },
+   mindMapContent: {
+     flex: 1,
+   },
+   mindMapCard: {
+     backgroundColor: colors.cardBackground,
+     borderRadius: 16,
+     padding: 24,
+     alignItems: 'center',
+     borderWidth: 1,
+     borderColor: colors.cardBorder,
+   },
+   mindMapCardTitle: {
+     fontSize: 18,
+     fontWeight: '600',
+     color: colors.textPrimary,
+     marginTop: 16,
+     marginBottom: 8,
+   },
+   mindMapCardDescription: {
+     fontSize: 14,
+     color: colors.textSecondary,
+     textAlign: 'center',
+     lineHeight: 20,
+     marginBottom: 24,
+   },
+   mindMapButton: {
+     flexDirection: 'row',
+     alignItems: 'center',
+     backgroundColor: colors.primary,
+     paddingHorizontal: 20,
+     paddingVertical: 12,
+     borderRadius: 25,
+     gap: 8,
+   },
+   mindMapButtonText: {
+     fontSize: 16,
+     fontWeight: '600',
+     color: colors.textPrimary,
+   },
+   // Compare Tab Styles
+   compareContainer: {
+     flex: 1,
+     padding: 20,
+   },
+   compareHeader: {
+     marginBottom: 24,
+   },
+   compareTitle: {
+     fontSize: 20,
+     fontWeight: '600',
+     color: colors.textPrimary,
+     marginBottom: 8,
+   },
+   compareSubtitle: {
+     fontSize: 14,
+     color: colors.textSecondary,
+     lineHeight: 20,
+   },
+   compareInputSection: {
+     marginBottom: 24,
+   },
+   compareInputLabel: {
+     fontSize: 16,
+     fontWeight: '600',
+     color: colors.textPrimary,
+     marginBottom: 8,
+   },
+   compareTextInput: {
+     backgroundColor: colors.cardBackground,
+     borderWidth: 1,
+     borderColor: colors.cardBorder,
+     borderRadius: 12,
+     padding: 16,
+     fontSize: 16,
+     color: colors.textPrimary,
+     minHeight: 120,
+     marginBottom: 16,
+   },
+   compareButton: {
+     flexDirection: 'row',
+     alignItems: 'center',
+     justifyContent: 'center',
+     backgroundColor: colors.primary,
+     paddingHorizontal: 20,
+     paddingVertical: 12,
+     borderRadius: 25,
+     gap: 8,
+   },
+   compareButtonDisabled: {
+     backgroundColor: colors.textTertiary,
+     opacity: 0.6,
+   },
+   compareButtonText: {
+     fontSize: 16,
+     fontWeight: '600',
+     color: colors.textPrimary,
+   },
+   compareResultsSection: {
+     backgroundColor: colors.cardBackground,
+     borderRadius: 16,
+     padding: 20,
+     borderWidth: 1,
+     borderColor: colors.cardBorder,
+   },
+   compareResultsTitle: {
+     fontSize: 18,
+     fontWeight: '600',
+     color: colors.textPrimary,
+     marginBottom: 16,
+   },
+   similarityScoreContainer: {
+     marginBottom: 20,
+   },
+   similarityScoreLabel: {
+     fontSize: 16,
+     fontWeight: '600',
+     color: colors.textPrimary,
+     marginBottom: 8,
+   },
+   similarityScoreBar: {
+     height: 8,
+     backgroundColor: colors.cardBorder,
+     borderRadius: 4,
+     marginBottom: 8,
+     overflow: 'hidden',
+   },
+   similarityScoreFill: {
+     height: '100%',
+     backgroundColor: colors.primary,
+     borderRadius: 4,
+   },
+   similarityScoreText: {
+     fontSize: 14,
+     fontWeight: '600',
+     color: colors.textPrimary,
+     textAlign: 'center',
+   },
+   comparisonSection: {
+     marginBottom: 16,
+   },
+   comparisonSectionTitle: {
+     fontSize: 16,
+     fontWeight: '600',
+     color: colors.textPrimary,
+     marginBottom: 8,
+     flexDirection: 'row',
+     alignItems: 'center',
+   },
+   comparisonItem: {
+     marginBottom: 4,
+   },
+   comparisonItemText: {
+     fontSize: 14,
+     color: colors.textSecondary,
+     lineHeight: 20,
+   },
+   // New Tab Styles
+   tabsScrollView: {
+     flexGrow: 0, // Prevent ScrollView from growing and taking up space
+   },
+   tabsScrollContainer: {
+     alignItems: 'center',
+   },
+ });
+
