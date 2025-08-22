@@ -7,7 +7,8 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 // OpenAI API Key from environment variable
 const openaiApiKey = process.env.OPENAI_API_KEY;
 
-
+// Gemini API Key from environment variable
+const geminiApiKey = process.env.GEMINI_API_KEY;
 
 if (!openaiApiKey) {
   console.warn('⚠️  Missing OPENAI_API_KEY environment variable - will use Gemini as primary');
