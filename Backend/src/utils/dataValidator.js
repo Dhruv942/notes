@@ -84,7 +84,6 @@ class DataValidator {
     }
 
     // Set default values for optional fields
-    validated.type = validated.type || 'text';
     validated.summary = validated.summary || '';
     validated.key_points = validated.key_points || [];
     validated.headings = validated.headings || [];

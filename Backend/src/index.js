@@ -10,10 +10,10 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:8081', 'http://192.168.1.7:3000', 'http://192.168.1.7:8081', 'exp://192.168.1.7:8081'],
+  origin: true, // Allow all origins for development
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Content-Length']
 }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -30,6 +30,9 @@ const flashcardsRoutes = require('./routes/flashcards');
 const newsRoutes = require('./routes/news');
 const websiteRoutes = require('./routes/website');
 const compareRoutes = require('./routes/compare');
+
+// Import services
+const cronService = require('./services/cronService');
 
 // Use routes
 app.use('/api/notes', notesRoutes);
@@ -57,5 +60,8 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
   console.log(`🌐 External access: http://192.168.1.7:${PORT}/api/health`);
+  
+  // Initialize cron jobs after server starts
+  cronService.init();
 });
 

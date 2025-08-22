@@ -203,7 +203,7 @@ export default function QuizScreen() {
           )}
           
           <View style={styles.quizContainer}>
-            <Text style={styles.questionText}>{currentQuiz?.question}</Text>
+            <Text style={styles.questionText}>{currentQuiz?.question || 'Loading question...'}</Text>
             
             <View style={styles.optionsContainer}>
               {currentQuiz?.options?.map((option, index) => (

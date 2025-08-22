@@ -101,6 +101,21 @@ class FlashcardModel {
       throw error;
     }
   }
+
+  async deleteFlashcardsByNote(noteId) {
+    try {
+      const { error } = await supabase
+        .from('flashcards')
+        .delete()
+        .eq('note_id', noteId);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Error deleting flashcards by note:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = new FlashcardModel();

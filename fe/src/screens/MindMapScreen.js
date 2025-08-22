@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors } from '../../../frontend/src/theme/colors';
+import { colors } from '../theme/colors';
 
 export default function MindMapScreen() {
   return (

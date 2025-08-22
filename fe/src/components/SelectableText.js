@@ -9,7 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import apiService from '../../../frontend/src/services/api';
+import apiService from '../services/api';
 
 export default function SelectableText({ children, style, onHighlightSaved }) {
   const [showSaveModal, setShowSaveModal] = useState(false);

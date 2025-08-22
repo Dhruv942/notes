@@ -404,20 +404,20 @@ export default function NoteDetailModal({ visible, note, onClose, onRefresh }) {
            {/* Quiz Question */}
            <View style={styles.questionContainer}>
              <Text style={styles.questionText}>
-               {quizData[currentQuizIndex].question}
+               {quizData?.[currentQuizIndex]?.question || 'Loading question...'}
              </Text>
            </View>
 
            {/* Quiz Options */}
            <View style={styles.optionsContainer}>
-             {quizData[currentQuizIndex].options.map((option, index) => (
+             {quizData?.[currentQuizIndex]?.options?.map((option, index) => (
                <TouchableOpacity
                  key={index}
                  style={[
                    styles.optionCard,
                    selectedAnswer === index && styles.selectedOptionCard,
-                   showAnswer && index === quizData[currentQuizIndex].correct_answer && styles.correctOptionCard,
-                   showAnswer && selectedAnswer === index && index !== quizData[currentQuizIndex].correct_answer && styles.wrongOptionCard,
+                   showAnswer && index === quizData?.[currentQuizIndex]?.correct_answer && styles.correctOptionCard,
+                   showAnswer && selectedAnswer === index && index !== quizData?.[currentQuizIndex]?.correct_answer && styles.wrongOptionCard,
                  ]}
                  onPress={() => handleAnswerSelect(index)}
                  disabled={showAnswer} // Disable selection after answer is shown
@@ -425,8 +425,8 @@ export default function NoteDetailModal({ visible, note, onClose, onRefresh }) {
                  <Text style={[
                    styles.optionText,
                    selectedAnswer === index && styles.selectedOptionText,
-                   showAnswer && index === quizData[currentQuizIndex].correct_answer && styles.correctOptionText,
-                   showAnswer && selectedAnswer === index && index !== quizData[currentQuizIndex].correct_answer && styles.wrongOptionText,
+                   showAnswer && index === quizData?.[currentQuizIndex]?.correct_answer && styles.correctOptionText,
+                   showAnswer && selectedAnswer === index && index !== quizData?.[currentQuizIndex]?.correct_answer && styles.wrongOptionText,
                  ]}>
                    {option}
                  </Text>
@@ -445,10 +445,10 @@ export default function NoteDetailModal({ visible, note, onClose, onRefresh }) {
                <Text style={styles.navButtonText}>Previous</Text>
              </TouchableOpacity>
 
-             <TouchableOpacity
-               style={[styles.navButton, currentQuizIndex === quizData.length - 1 && styles.disabledButton]}
-               onPress={handleNextQuestion}
-               disabled={currentQuizIndex === quizData.length - 1}
+                            <TouchableOpacity
+                 style={[styles.navButton, currentQuizIndex === (quizData?.length || 0) - 1 && styles.disabledButton]}
+                 onPress={handleNextQuestion}
+                 disabled={currentQuizIndex === (quizData?.length || 0) - 1}
              >
                <Text style={styles.navButtonText}>Next</Text>
                <Ionicons name="chevron-forward" size={20} color={colors.textPrimary} />
@@ -532,7 +532,7 @@ export default function NoteDetailModal({ visible, note, onClose, onRefresh }) {
            >
              <View style={styles.flashcard}>
                <Text style={styles.flashcardText}>
-                 {flashcardFlipped ? flashcardsData[currentFlashcardIndex].answer : flashcardsData[currentFlashcardIndex].question}
+                 {flashcardFlipped ? flashcardsData?.[currentFlashcardIndex]?.answer : flashcardsData?.[currentFlashcardIndex]?.question || 'Loading...'}
                </Text>
              </View>
            </TouchableOpacity>
@@ -551,9 +551,9 @@ export default function NoteDetailModal({ visible, note, onClose, onRefresh }) {
              </TouchableOpacity>
 
              <TouchableOpacity
-               style={[styles.navButton, currentFlashcardIndex === flashcardsData.length - 1 && styles.disabledButton]}
-               onPress={() => { setCurrentFlashcardIndex(Math.min(flashcardsData.length - 1, currentFlashcardIndex + 1)); setFlashcardFlipped(false); }}
-               disabled={currentFlashcardIndex === flashcardsData.length - 1}
+               style={[styles.navButton, currentFlashcardIndex === (flashcardsData?.length || 0) - 1 && styles.disabledButton]}
+               onPress={() => { setCurrentFlashcardIndex(Math.min((flashcardsData?.length || 0) - 1, currentFlashcardIndex + 1)); setFlashcardFlipped(false); }}
+               disabled={currentFlashcardIndex === (flashcardsData?.length || 0) - 1}
              >
                <Text style={styles.navButtonText}>Next</Text>
                <Ionicons name="chevron-forward" size={20} color={colors.textPrimary} />
@@ -562,7 +562,7 @@ export default function NoteDetailModal({ visible, note, onClose, onRefresh }) {
 
            {/* Pagination Dots */}
            <View style={styles.paginationContainer}>
-             {flashcardsData.map((_, index) => (
+             {flashcardsData?.map((_, index) => (
                <TouchableOpacity
                  key={index}
                  style={[

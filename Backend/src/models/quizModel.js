@@ -101,6 +101,21 @@ class QuizModel {
       throw error;
     }
   }
+
+  async deleteQuizzesByNote(noteId) {
+    try {
+      const { error } = await supabase
+        .from('quizzes')
+        .delete()
+        .eq('note_id', noteId);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Error deleting quizzes by note:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = new QuizModel();

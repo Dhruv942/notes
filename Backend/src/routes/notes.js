@@ -6,6 +6,8 @@ const pdf = require('pdf-parse');
 const mammoth = require('mammoth');
 const aiService = require('../services/aiService');
 const notesModel = require('../models/notesModel');
+const quizModel = require('../models/quizModel');
+const flashcardModel = require('../models/flashcardModel');
 
 const router = express.Router();
 
@@ -106,7 +108,7 @@ router.get('/:id', async (req, res) => {
 // Create new note
 router.post('/', async (req, res) => {
   try {
-    const { title, content, type = 'text', tags = [] } = req.body;
+    const { title, content, tags = [] } = req.body;
     
     if (!title || !content) {
       return res.status(400).json({ error: 'Title and content are required' });
@@ -134,7 +136,6 @@ router.post('/', async (req, res) => {
     const noteData = {
       title,
       content,
-      type,
       summary,
       key_points: keyPoints,
       headings,
@@ -146,6 +147,39 @@ router.post('/', async (req, res) => {
     const newNote = await notesModel.createNote(noteData);
     console.log('✅ Note created successfully');
     
+    // Automatically generate quizzes and flashcards
+    console.log('🤖 Automatically generating quizzes and flashcards...');
+    try {
+      const [quizQuestions, flashcards] = await Promise.all([
+        aiService.generateQuizQuestions(content),
+        aiService.generateFlashcards(content)
+      ]);
+      
+      // Save quizzes to database
+      for (const quiz of quizQuestions) {
+        await quizModel.createQuiz({
+          note_id: newNote.id,
+          question: quiz.question,
+          options: quiz.options,
+          correct_answer: quiz.correct_answer
+        });
+      }
+      
+      // Save flashcards to database
+      for (const flashcard of flashcards) {
+        await flashcardModel.createFlashcard({
+          note_id: newNote.id,
+          question: flashcard.question,
+          answer: flashcard.answer
+        });
+      }
+      
+      console.log(`✅ Generated ${quizQuestions.length} quizzes and ${flashcards.length} flashcards automatically`);
+    } catch (aiError) {
+      console.error('⚠️ Error generating quizzes/flashcards:', aiError);
+      // Don't fail the note creation if AI generation fails
+    }
+    
     res.status(201).json({ data: newNote });
   } catch (error) {
     console.error('❌ Error in POST /notes:', error);
@@ -155,15 +189,22 @@ router.post('/', async (req, res) => {
 
 // Upload file and create note
 router.post('/upload', upload.single('file'), async (req, res) => {
+  console.log('📁 File upload endpoint hit!');
   try {
+    console.log('📁 File upload request received');
+    console.log('📁 Request body:', req.body);
+    console.log('📁 Request file:', req.file);
+    
     if (!req.file) {
+      console.log('❌ No file uploaded');
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
     const { title } = req.body;
-    if (!title) {
-      return res.status(400).json({ error: 'Title is required' });
-    }
+    const fileName = req.file.originalname || 'Uploaded File';
+    const finalTitle = title || fileName;
+    
+    console.log('📁 Final title:', finalTitle);
 
     // Extract text from file
     const content = await extractTextFromFile(req.file.path, req.file.mimetype);
@@ -182,9 +223,8 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     ]);
 
     const noteData = {
-      title,
+      title: finalTitle,
       content,
-      type: 'file',
       summary,
       key_points: keyPoints,
       headings,
@@ -194,6 +234,39 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
     const newNote = await notesModel.createNote(noteData);
     console.log('✅ File note created successfully with AI features');
+    
+    // Automatically generate quizzes and flashcards
+    console.log('🤖 Automatically generating quizzes and flashcards...');
+    try {
+      const [quizQuestions, flashcards] = await Promise.all([
+        aiService.generateQuizQuestions(content),
+        aiService.generateFlashcards(content)
+      ]);
+      
+      // Save quizzes to database
+      for (const quiz of quizQuestions) {
+        await quizModel.createQuiz({
+          note_id: newNote.id,
+          question: quiz.question,
+          options: quiz.options,
+          correct_answer: quiz.correct_answer
+        });
+      }
+      
+      // Save flashcards to database
+      for (const flashcard of flashcards) {
+        await flashcardModel.createFlashcard({
+          note_id: newNote.id,
+          question: flashcard.question,
+          answer: flashcard.answer
+        });
+      }
+      
+      console.log(`✅ Generated ${quizQuestions.length} quizzes and ${flashcards.length} flashcards automatically`);
+    } catch (aiError) {
+      console.error('⚠️ Error generating quizzes/flashcards:', aiError);
+      // Don't fail the note creation if AI generation fails
+    }
     
     res.status(201).json({ data: newNote });
   } catch (error) {
@@ -234,6 +307,47 @@ router.put('/:id', async (req, res) => {
     }
 
     console.log('✅ Note updated successfully');
+    
+    // Regenerate quizzes and flashcards if content changed
+    if (content) {
+      console.log('🤖 Regenerating quizzes and flashcards for updated note...');
+      try {
+        // Delete existing quizzes and flashcards for this note
+        await quizModel.deleteQuizzesByNote(req.params.id);
+        await flashcardModel.deleteFlashcardsByNote(req.params.id);
+        
+        // Generate new ones
+        const [quizQuestions, flashcards] = await Promise.all([
+          aiService.generateQuizQuestions(content),
+          aiService.generateFlashcards(content)
+        ]);
+        
+        // Save new quizzes to database
+        for (const quiz of quizQuestions) {
+          await quizModel.createQuiz({
+            note_id: req.params.id,
+            question: quiz.question,
+            options: quiz.options,
+            correct_answer: quiz.correct_answer
+          });
+        }
+        
+        // Save new flashcards to database
+        for (const flashcard of flashcards) {
+          await flashcardModel.createFlashcard({
+            note_id: req.params.id,
+            question: flashcard.question,
+            answer: flashcard.answer
+          });
+        }
+        
+        console.log(`✅ Regenerated ${quizQuestions.length} quizzes and ${flashcards.length} flashcards`);
+      } catch (aiError) {
+        console.error('⚠️ Error regenerating quizzes/flashcards:', aiError);
+        // Don't fail the note update if AI generation fails
+      }
+    }
+    
     res.json({ data: updatedNote });
   } catch (error) {
     console.error('❌ Error in PUT /notes/:id:', error);

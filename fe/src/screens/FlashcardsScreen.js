@@ -142,7 +142,7 @@ export default function FlashcardsScreen() {
           
           <View style={styles.cardContainer}>
             <View style={styles.card}>
-              <Text style={styles.cardQuestion}>{currentCard?.question}</Text>
+              <Text style={styles.cardQuestion}>{currentCard?.question || 'Loading question...'}</Text>
               
               <TouchableOpacity
                 style={styles.answerButton}
@@ -154,7 +154,7 @@ export default function FlashcardsScreen() {
               </TouchableOpacity>
               
               {showAnswer && (
-                <Text style={styles.cardAnswer}>{currentCard?.answer}</Text>
+                <Text style={styles.cardAnswer}>{currentCard?.answer || 'No answer available'}</Text>
               )}
             </View>
             

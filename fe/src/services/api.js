@@ -13,9 +13,6 @@ class ApiService {
   async request(endpoint, options = {}) {
     try {
       const url = `${this.baseURL}${endpoint}`;
-      console.log('🌐 Making API request to:', url);
-      console.log('🌐 Request options:', options);
-      
       const response = await fetch(url, {
         headers: {
           'Content-Type': 'application/json',
@@ -24,18 +21,11 @@ class ApiService {
         ...options,
       });
 
-      console.log('🌐 Response status:', response.status);
-      console.log('🌐 Response ok:', response.ok);
-
       const data = await response.json();
-      console.log('🌐 Response data:', data);
       
       if (!response.ok) {
-        console.log('🌐 Response not ok, throwing error');
         throw new Error(data.message || 'API request failed');
       }
-
-             console.log('✅ API response received:', data);
        
        // Add success property if not present (for backward compatibility)
        if (data.success === undefined) {
@@ -54,12 +44,16 @@ class ApiService {
   async uploadFileRequest(endpoint, formData) {
     try {
       const url = `${this.baseURL}${endpoint}`;
+      console.log('📁 Making upload request to:', url);
+      
       const response = await fetch(url, {
         method: 'POST',
         body: formData,
       });
 
+      console.log('📁 Upload response status:', response.status);
       const data = await response.json();
+      console.log('📁 Upload response data:', data);
       
       if (!response.ok) {
         throw new Error(data.message || 'Upload failed');
@@ -67,7 +61,7 @@ class ApiService {
 
       return data;
     } catch (error) {
-      console.error('Upload Error:', error);
+      console.error('❌ Upload Error:', error);
       throw error;
     }
   }
@@ -108,12 +102,24 @@ class ApiService {
   }
 
   async uploadFile(file, title = '', tags = '', isPublic = false) {
+    console.log('📁 Frontend uploadFile called with:', { file, title, tags, isPublic });
+    
+    // Handle expo-document-picker file object
+    const fileToUpload = {
+      uri: file.uri,
+      type: file.mimeType || 'application/octet-stream',
+      name: file.name || 'uploaded-file',
+    };
+    
+    console.log('📁 Processed file object:', fileToUpload);
+    
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', fileToUpload);
     if (title) formData.append('title', title);
     if (tags) formData.append('tags', tags);
     formData.append('is_public', isPublic.toString());
 
+    console.log('📁 FormData created:', formData);
     return this.uploadFileRequest('/notes/upload', formData);
   }
 
@@ -237,18 +243,33 @@ class ApiService {
   }
 
   // News API
-  async getNewsArticles(limit = 10, offset = 0) {
-    const params = new URLSearchParams({
-      limit: limit.toString(),
-      offset: offset.toString(),
-    });
-    return this.request(`/news/articles?${params}`);
+  async getDailyNews(date = null) {
+    const params = date ? new URLSearchParams({ date }) : '';
+    return this.request(`/news/daily-news${params ? `?${params}` : ''}`);
   }
 
-  async summarizeNewsArticle(articleId) {
-    return this.request(`/news/${articleId}/summarize`, {
+  async getNewsByCategory(category) {
+    return this.request(`/news/category/${encodeURIComponent(category)}`);
+  }
+
+  async getNewsStats() {
+    return this.request('/news/stats');
+  }
+
+  async processNews() {
+    return this.request('/news/process', {
       method: 'POST',
     });
+  }
+
+  async cleanupNews() {
+    return this.request('/news/cleanup', {
+      method: 'DELETE',
+    });
+  }
+
+  async getNewsCategories() {
+    return this.request('/news/categories');
   }
 
   // Chat API
